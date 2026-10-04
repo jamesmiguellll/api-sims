@@ -19,6 +19,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -635,186 +641,132 @@ export default function ProductionRequestTab({
                         <StatusBadge status={req.status} />
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="relative flex items-center justify-end gap-1.5">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
                             <Button
                               type="button"
                               variant="outline"
                               size="sm"
-                              onClick={() => {
-                                setOpenDropdownId(isOpen ? null : req.batchId);
-                              }}
-                              className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                                isOpen
-                                  ? "bg-muted border-border text-foreground shadow-sm"
-                                  : "border-transparent text-foreground hover:bg-muted/80"
-                              }`}
+                              className="p-1.5 rounded-lg border border-transparent text-foreground hover:bg-muted/80 transition-all data-[state=open]:bg-muted data-[state=open]:border-border data-[state=open]:shadow-sm cursor-pointer"
                               aria-label="Actions menu"
                             >
                               <MoreHorizontal className="w-4 h-4 text-foreground" />
                             </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48 z-[200]">
+                            {/* View Details (Always available) */}
+                            <DropdownMenuItem
+                              onClick={() => setDetailsBatch(req)}
+                              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-foreground shrink-0" />
+                              <span className="truncate text-foreground">View Details</span>
+                            </DropdownMenuItem>
 
-                            {isOpen && (
-                              <div
-                                ref={dropdownRef}
-                                style={{ minWidth: "185px" }}
-                                className={`absolute right-0 ${
-                                  rowIdx >= filteredRequests.length - 1 && filteredRequests.length <= 2
-                                    ? "bottom-full mb-1.5"
-                                    : "top-full mt-1.5"
-                                } z-[200] rounded-xl border border-border bg-card py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-100 text-left`}
-                              >
-                                {/* View Details (Always available) */}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setOpenDropdownId(null);
-                                    setDetailsBatch(req);
-                                  }}
-                                  className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-foreground text-left cursor-pointer"
+                            {/* ADMIN ACTIONS for Pending Approval */}
+                            {isAdmin && isPending && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => handleApprove(req.batchId)}
+                                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
                                 >
-                                  <Eye className="w-3.5 h-3.5 text-foreground shrink-0" />
-                                  <span className="truncate text-foreground">View Details</span>
-                                </button>
+                                  <Check className="w-3.5 h-3.5 text-foreground shrink-0" />
+                                  <span className="truncate text-foreground">Approve Request</span>
+                                </DropdownMenuItem>
 
-                                {/* ADMIN ACTIONS for Pending Approval */}
-                                {isAdmin && isPending && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setOpenDropdownId(null);
-                                        handleApprove(req.batchId);
-                                      }}
-                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-foreground text-left cursor-pointer"
-                                    >
-                                      <Check className="w-3.5 h-3.5 text-foreground shrink-0" />
-                                      <span className="truncate text-foreground">Approve Request</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setOpenDropdownId(null);
-                                        setReviewingBatch(req);
-                                        setIsRejectMode(true);
-                                        setRejectReason("");
-                                        setRejectReasonError(false);
-                                      }}
-                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-destructive text-left cursor-pointer"
-                                    >
-                                      <XIcon className="w-3.5 h-3.5 text-destructive shrink-0" />
-                                      <span className="truncate text-destructive">Reject Request</span>
-                                    </button>
-                                  </>
-                                )}
-
-                                {/* DRAFT ACTIONS */}
-                                {!isAdmin && isDraft && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setOpenDropdownId(null);
-                                        handleSubmitDraft(req);
-                                      }}
-                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-foreground text-left cursor-pointer"
-                                    >
-                                      <Send className="w-3.5 h-3.5 text-foreground shrink-0" />
-                                      <span className="truncate text-foreground">Submit for Approval</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setOpenDropdownId(null);
-                                        handleDeleteDraft(req.batchId);
-                                      }}
-                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-destructive text-left cursor-pointer"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5 text-destructive shrink-0" />
-                                      <span className="truncate text-destructive">Delete Draft</span>
-                                    </button>
-                                  </>
-                                )}
-
-                                {/* ACTIONS FOR APPROVED (Available to both Admin and Head Cook) */}
-                                {isApproved && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setOpenDropdownId(null);
-                                        onNavigateToTracking(req.batchId);
-                                      }}
-                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-foreground text-left cursor-pointer"
-                                    >
-                                      <Play className="w-3.5 h-3.5 text-foreground shrink-0" />
-                                      <span className="truncate text-foreground">
-                                        {isAdmin ? "Track / Pre-Prod" : "Start Pre-Prod"}
-                                      </span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setOpenDropdownId(null);
-                                        handleCancelBatch(req.batchId);
-                                      }}
-                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-destructive text-left cursor-pointer"
-                                    >
-                                      <Ban className="w-3.5 h-3.5 text-destructive shrink-0" />
-                                      <span className="truncate text-destructive">Cancel Batch</span>
-                                    </button>
-                                  </>
-                                )}
-
-                                {/* ACTIONS FOR IN PROGRESS (Both Admin and Head Cook) */}
-                                {isInProgress && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setOpenDropdownId(null);
-                                        onNavigateToTracking(req.batchId);
-                                      }}
-                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-foreground text-left cursor-pointer"
-                                    >
-                                      <Play className="w-3.5 h-3.5 text-foreground shrink-0" />
-                                      <span className="truncate text-foreground">Track Batch</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setOpenDropdownId(null);
-                                        handleCancelBatch(req.batchId);
-                                      }}
-                                      className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-destructive text-left cursor-pointer"
-                                    >
-                                      <Ban className="w-3.5 h-3.5 text-destructive shrink-0" />
-                                      <span className="truncate text-destructive">Cancel Batch</span>
-                                    </button>
-                                  </>
-                                )}
-
-                                {/* COMPLETED: View Summary Report */}
-                                {(isCompleted || isPassedQa) && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setOpenDropdownId(null);
-                                      setViewingSummaryBatch(req);
-                                    }}
-                                    className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-foreground text-left cursor-pointer"
-                                  >
-                                    <FileText className="w-3.5 h-3.5 text-foreground shrink-0" />
-                                    <span className="truncate text-foreground">View Summary Report</span>
-                                  </button>
-                                )}
-                              </div>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setReviewingBatch(req);
+                                    setIsRejectMode(true);
+                                    setRejectReason("");
+                                    setRejectReasonError(false);
+                                  }}
+                                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                                >
+                                  <XIcon className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Reject Request</span>
+                                </DropdownMenuItem>
+                              </>
                             )}
-                          </div>
-                        </td>
+
+                            {/* DRAFT ACTIONS */}
+                            {!isAdmin && isDraft && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => handleSubmitDraft(req)}
+                                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
+                                >
+                                  <Send className="w-3.5 h-3.5 text-foreground shrink-0" />
+                                  <span className="truncate text-foreground">Submit for Approval</span>
+                                </DropdownMenuItem>
+
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteDraft(req.batchId)}
+                                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Delete Draft</span>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+
+                            {/* ACTIONS FOR APPROVED (Available to both Admin and Head Cook) */}
+                            {isApproved && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => onNavigateToTracking(req.batchId)}
+                                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
+                                >
+                                  <Play className="w-3.5 h-3.5 text-foreground shrink-0" />
+                                  <span className="truncate text-foreground">
+                                    {isAdmin ? "Track / Pre-Prod" : "Start Pre-Prod"}
+                                  </span>
+                                </DropdownMenuItem>
+
+                                <DropdownMenuItem
+                                  onClick={() => handleCancelBatch(req.batchId)}
+                                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                                >
+                                  <Ban className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Cancel Batch</span>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+
+                            {/* ACTIONS FOR IN PROGRESS (Both Admin and Head Cook) */}
+                            {isInProgress && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => onNavigateToTracking(req.batchId)}
+                                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
+                                >
+                                  <Play className="w-3.5 h-3.5 text-foreground shrink-0" />
+                                  <span className="truncate text-foreground">Track Batch</span>
+                                </DropdownMenuItem>
+
+                                <DropdownMenuItem
+                                  onClick={() => handleCancelBatch(req.batchId)}
+                                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                                >
+                                  <Ban className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">Cancel Batch</span>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+
+                            {/* COMPLETED: View Summary Report */}
+                            {(isCompleted || isPassedQa) && (
+                              <DropdownMenuItem
+                                onClick={() => setViewingSummaryBatch(req)}
+                                className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
+                              >
+                                <FileText className="w-3.5 h-3.5 text-foreground shrink-0" />
+                                <span className="truncate text-foreground">View Summary Report</span>
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
                       </tr>
                     );
                   })}

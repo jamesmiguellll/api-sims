@@ -20,9 +20,7 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
       return NextResponse.json({ success: false, message: `Invalid status '${body.status}'. Allowed: ${validStatuses.join(", ")}.` }, { status: 400 });
     }
 
-    const updateData: any = {
-      UpdatedAt: new Date(),
-    };
+    const updateData: any = {};
 
     if (body.status) updateData.Status = body.status;
     if (body.qaStatus) updateData.QaStatus = body.qaStatus;

@@ -125,14 +125,15 @@ export default function ResourcesSuppliersPage() {
             await Promise.allSettled(
               addedIds.map((supplierId) =>
                 api.post("/api/supplier-items", {
-                  SupplierId: supplierId,
-                  ItemId: itemId,
-                  UnitPrice: 0,
-                  LeadTimeDays: 3,
-                  PackSize: 1,
-                  MinOrderQuantity: 1,
-                  IsPreferred: false,
-                  IsActive: true,
+                  supplierId: supplierId,
+                  itemId: itemId,
+                  purchaseUomId: data.uomId,
+                  unitPrice: 0,
+                  leadTimeDays: 3,
+                  packSize: 1,
+                  minOrderQuantity: 1,
+                  isPreferred: false,
+                  isActive: true,
                 }).catch(() => {})
               )
             );
@@ -140,14 +141,15 @@ export default function ResourcesSuppliersPage() {
             await Promise.allSettled(
               targetSupplierIds.map((supplierId) =>
                 api.post("/api/supplier-items", {
-                  SupplierId: supplierId,
-                  ItemId: itemId,
-                  UnitPrice: 0,
-                  LeadTimeDays: 3,
-                  PackSize: 1,
-                  MinOrderQuantity: 1,
-                  IsPreferred: false,
-                  IsActive: true,
+                  supplierId: supplierId,
+                  itemId: itemId,
+                  purchaseUomId: data.uomId,
+                  unitPrice: 0,
+                  leadTimeDays: 3,
+                  packSize: 1,
+                  minOrderQuantity: 1,
+                  isPreferred: false,
+                  isActive: true,
                 }).catch(() => {})
               )
             );
@@ -156,14 +158,15 @@ export default function ResourcesSuppliersPage() {
           await Promise.allSettled(
             targetSupplierIds.map((supplierId: number) =>
               api.post("/api/supplier-items", {
-                SupplierId: supplierId,
-                ItemId: itemId,
-                UnitPrice: 0,
-                LeadTimeDays: 3,
-                PackSize: 1,
-                MinOrderQuantity: 1,
-                IsPreferred: false,
-                IsActive: true,
+                supplierId: supplierId,
+                itemId: itemId,
+                purchaseUomId: data.uomId,
+                unitPrice: 0,
+                leadTimeDays: 3,
+                packSize: 1,
+                minOrderQuantity: 1,
+                isPreferred: false,
+                isActive: true,
               }).catch(() => {})
             )
           );

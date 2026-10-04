@@ -4,6 +4,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { Eye, Pencil, MoreHorizontal, Ban } from "lucide-react";
 import { PurchaseOrderPO } from "../types";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ActionItem {
   label: string;
@@ -114,40 +120,30 @@ export function POTable({ orders, isAdmin, onView, onEdit, onCancel }: POTablePr
                   <td className="px-4 py-3.5 whitespace-nowrap">
                     <StatusBadge status={po.status} />
                   </td>
-                  <td className="px-4 py-3.5 text-center whitespace-nowrap relative" onClick={(e) => e.stopPropagation()}>
-                    <div className="relative inline-flex items-center justify-center">
-                      <button
-                        type="button"
-                        onClick={() => setOpenDropdownId(isOpen ? null : po.poId)}
-                        className={`p-1.5 rounded-lg border transition-all ${
-                          isOpen
-                            ? "bg-muted border-border text-foreground shadow-sm"
-                            : "border-transparent text-foreground hover:bg-muted/80"
-                        }`}
-                        aria-label="Actions menu"
-                      >
-                        <MoreHorizontal className="w-4 h-4 text-foreground" />
-                      </button>
-                      {isOpen && (
-                        <div
-                          ref={dropdownRef}
-                          style={{ minWidth: "175px" }}
-                          className="absolute right-0 top-full mt-1.5 z-[200] rounded-xl border border-border bg-card py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-100 text-left"
+                  <td className="px-4 py-3.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="p-1.5 rounded-lg border border-transparent text-foreground hover:bg-muted/80 transition-all data-[state=open]:bg-muted data-[state=open]:border-border data-[state=open]:shadow-sm"
+                          aria-label="Actions menu"
                         >
-                          {actions.map((action, idx) => (
-                            <button
-                              key={action.label + idx}
-                              type="button"
-                              onClick={action.onClick}
-                              className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-foreground text-left"
-                            >
-                              <span className="shrink-0 text-foreground">{action.icon}</span>
-                              <span className="truncate text-foreground">{action.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                          <MoreHorizontal className="w-4 h-4 text-foreground" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 z-[200]">
+                        {actions.map((action, idx) => (
+                          <DropdownMenuItem
+                            key={action.label + idx}
+                            onClick={action.onClick}
+                            className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
+                          >
+                            <span className="shrink-0 text-foreground">{action.icon}</span>
+                            <span className="truncate text-foreground">{action.label}</span>
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </td>
                 </tr>
               );

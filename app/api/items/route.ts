@@ -103,6 +103,13 @@ export async function POST(request: Request) {
     });
     if (nameExists) return NextResponse.json({ success: false, message: "An item with this name already exists." }, { status: 400 });
 
+    if (!body.uomId || typeof body.uomId !== 'number') {
+      return NextResponse.json({ success: false, message: "Please select a valid Unit of Measurement." }, { status: 400 });
+    }
+    if (!body.categoryId || typeof body.categoryId !== 'number') {
+      return NextResponse.json({ success: false, message: "Please select a valid Category." }, { status: 400 });
+    }
+
     const uom = await prisma.unitOfMeasures.findUnique({ where: { UomId: body.uomId } });
     const category = await prisma.categories.findUnique({ where: { CategoryId: body.categoryId } });
     if (!uom || !category) return NextResponse.json({ success: false, message: "Invalid UOM or Category ID" }, { status: 400 });

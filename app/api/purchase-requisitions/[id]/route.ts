@@ -29,7 +29,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
       requestedBy: pr.RequestedBy,
       requestDate: pr.RequestDate,
       requiredDate: pr.RequiredDate,
-      status: pr.Status,
+      status: pr.Status === 'PendingApproval' ? 'Pending Approval' : (pr.Status === 'ConvertedToPO' ? 'Converted to PO' : pr.Status),
       requestType: pr.RequestType,
       priority: pr.Priority,
       purpose: pr.Purpose,

@@ -377,8 +377,8 @@ export function CreateDeliveryModal({
     const errs: Record<number, string> = {};
     items.forEach((item) => {
       if (item.availableToSchedule > 0) {
-        if (item.orderQuantity <= 0) {
-          errs[item.poItemId] = "Order quantity must be greater than 0.";
+        if (item.orderQuantity < 0) {
+          errs[item.poItemId] = "Order quantity cannot be negative.";
         } else if (item.orderQuantity > item.availableToSchedule) {
           errs[item.poItemId] = `Cannot exceed available balance (${item.availableToSchedule} ${item.purchaseUomName}).`;
         }

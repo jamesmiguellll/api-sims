@@ -368,6 +368,9 @@ export function CreatePRModal({
         items: items.map((it) => ({
           itemId: it.itemId,
           requestedQuantity: it.requestedQuantity,
+          purchaseUomId: it.purchaseUomId || 1, // Fallback if missing
+          estimatedUnitPrice: it.estimatedUnitPrice || 0,
+          suggestedSupplierId: (it as any).suggestedSupplierId || null,
         })),
       };
 

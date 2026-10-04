@@ -24,6 +24,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -561,96 +568,67 @@ export default function ConfigurationTab() {
 
                       {/* Actions: 3-dots Dropdown Menu (Pattern from PRTable.tsx) */}
                       <td className="py-2.5 px-4 text-right">
-                        <div className="relative inline-block text-left">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenDropdownId(isOpen ? null : product.productId);
-                            }}
-                            className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                              isOpen
-                                ? "bg-muted border-border text-foreground shadow-sm"
-                                : "border-transparent text-foreground hover:bg-muted/80"
-                            }`}
-                            aria-label="Actions menu"
-                          >
-                            <MoreHorizontal className="w-4 h-4 text-foreground" />
-                          </button>
-
-                          {isOpen && (
-                            <div
-                              ref={dropdownRef}
-                              style={{ minWidth: "175px" }}
-                              className="absolute right-0 top-full mt-1.5 z-[200] rounded-xl border border-border bg-card py-1.5 shadow-xl animate-in fade-in zoom-in-95 duration-100 text-left"
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="p-1.5 rounded-lg border border-transparent text-foreground hover:bg-muted/80 transition-all data-[state=open]:bg-muted data-[state=open]:border-border data-[state=open]:shadow-sm cursor-pointer"
+                              aria-label="Actions menu"
                             >
-                              {/* Add Variant to this product */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleOpenAddVariant(product.itemName);
-                                }}
-                                className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-foreground text-left cursor-pointer"
-                              >
-                                <Plus className="w-3.5 h-3.5 text-foreground shrink-0" />
-                                <span className="truncate text-foreground">
-                                  Add Variant
-                                </span>
-                              </button>
+                              <MoreHorizontal className="w-4 h-4 text-foreground" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48 z-[200]">
+                            {/* Add Variant to this product */}
+                            <DropdownMenuItem
+                              onClick={() => handleOpenAddVariant(product.itemName)}
+                              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5 text-foreground shrink-0" />
+                              <span className="truncate text-foreground">
+                                Add Variant
+                              </span>
+                            </DropdownMenuItem>
 
-                              {/* Edit Variant */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleOpenEditVariant(product);
-                                }}
-                                className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-foreground text-left cursor-pointer"
-                              >
-                                <Pencil className="w-3.5 h-3.5 text-foreground shrink-0" />
-                                <span className="truncate text-foreground">
-                                  Edit Variant
-                                </span>
-                              </button>
+                            {/* Edit Variant */}
+                            <DropdownMenuItem
+                              onClick={() => handleOpenEditVariant(product)}
+                              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
+                            >
+                              <Pencil className="w-3.5 h-3.5 text-foreground shrink-0" />
+                              <span className="truncate text-foreground">
+                                Edit Variant
+                              </span>
+                            </DropdownMenuItem>
 
-                              {/* Upload Photo */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleRowUploadClick(product.productId);
-                                }}
-                                className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-foreground text-left cursor-pointer"
-                              >
-                                <Upload className="w-3.5 h-3.5 text-foreground shrink-0" />
-                                <span className="truncate text-foreground">
-                                  Upload Photo
-                                </span>
-                              </button>
+                            {/* Upload Photo */}
+                            <DropdownMenuItem
+                              onClick={() => handleRowUploadClick(product.productId)}
+                              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer"
+                            >
+                              <Upload className="w-3.5 h-3.5 text-foreground shrink-0" />
+                              <span className="truncate text-foreground">
+                                Upload Photo
+                              </span>
+                            </DropdownMenuItem>
 
-                              <div className="my-1 border-t border-border" />
+                            <DropdownMenuSeparator />
 
-                              {/* Delete Variant */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setOpenDropdownId(null);
-                                  handleDeleteVariant(
-                                    product.productId,
-                                    product.variant || product.itemName
-                                  );
-                                }}
-                                className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-destructive text-left cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 text-destructive shrink-0" />
-                                <span className="truncate text-destructive">
-                                  Delete Variant
-                                </span>
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                            {/* Delete Variant */}
+                            <DropdownMenuItem
+                              onClick={() => handleDeleteVariant(
+                                product.productId,
+                                product.variant || product.itemName
+                              )}
+                              className="flex items-center gap-2.5 px-3 py-2 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">
+                                Delete Variant
+                              </span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </td>
                     </tr>
                   );
