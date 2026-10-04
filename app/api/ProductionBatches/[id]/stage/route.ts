@@ -99,7 +99,7 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
 
       // Calculate total material cost
       const updatedConsumptions = await prisma.batchConsumptions.findMany({ where: { BatchId: id } });
-      const totalCost = updatedConsumptions.reduce((sum: number, c) => sum + Number(c.UnitCost) * Number(c.QuantityUsed), 0);
+      const totalCost = updatedConsumptions.reduce<number>((sum, c) => sum + Number(c.UnitCost) * Number(c.QuantityUsed), 0);
       updateData.TotalMaterialCost = totalCost;
       const estimatedQty = Number(batch.EstimatedQuantity);
       updateData.UnitCost = estimatedQty > 0 ? totalCost / estimatedQty : 0;
