@@ -22,7 +22,7 @@ export async function GET(request: Request) {
       }
     });
 
-    const data = rtvs.map(r => ({
+    const data = rtvs.map((r: typeof rtvs[number]) => ({
       rtvId: r.RtvId,
       rtvNumber: r.RtvNumber,
       ncrId: r.NcrId,

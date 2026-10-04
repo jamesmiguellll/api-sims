@@ -31,7 +31,7 @@ export async function GET(request: Request) {
       }
     });
 
-    const responseData = inspections.map((q) => ({
+    const responseData = inspections.map((q: typeof inspections[number]) => ({
       inspectionId: q.InspectionId,
       inspectionNumber: q.InspectionNumber,
       inspectionType: q.InspectionType,
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
       status: q.Status,
       overallNotes: q.OverallNotes,
       completedAt: q.CompletedAt,
-      items: q.QualityInspectionItems.map((qi) => ({
+      items: q.QualityInspectionItems.map((qi: typeof q.QualityInspectionItems[number]) => ({
         inspectionItemId: qi.InspectionItemId,
         itemId: qi.ItemId,
         itemName: qi.Items?.ItemName,

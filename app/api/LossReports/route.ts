@@ -23,7 +23,7 @@ export async function GET(request: Request) {
       }
     });
 
-    const data = lossReports.map(l => {
+    const data = lossReports.map((l: typeof lossReports[number]) => {
       // Find PO details from either Discrepancies or GoodsReceipts relations
       let poNumber = l.Discrepancies?.PoNumber;
       let prId = l.Discrepancies?.PurchaseOrders?.PrId;

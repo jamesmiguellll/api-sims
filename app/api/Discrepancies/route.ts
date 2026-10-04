@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       }
     });
 
-    const data = discrepancies.map(d => ({
+    const data = discrepancies.map((d: typeof discrepancies[number]) => ({
       discrepancyId: d.DiscrepancyId,
       discrepancyNumber: d.DiscrepancyNumber,
       discrepancyType: d.DiscrepancyType,

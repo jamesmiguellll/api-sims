@@ -33,7 +33,7 @@ export async function GET(request: Request) {
       }
     });
 
-    const data = stockIns.map(s => ({
+    const data = stockIns.map((s: typeof stockIns[number]) => ({
       stockInId: s.StockInId,
       stockInNumber: s.StockInNumber,
       grnId: s.GrnId,
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
       committedBy: s.CommittedBy,
       committedAt: s.CommittedAt,
       notes: s.Notes,
-      lines: s.StockInLines.map(l => ({
+      lines: s.StockInLines.map((l: typeof s.StockInLines[number]) => ({
         stockInLineId: l.StockInLineId,
         stockInId: l.StockInId,
         grnItemId: l.GrnItemId,
