@@ -1,7 +1,19 @@
 "use client";
 
-import React, { useState, useRef } from "react";
-import { AlertTriangle, Calendar, ChevronRight, X, QrCode, Search } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  Calendar,
+  CheckCircle2,
+  ChevronRight,
+  QrCode,
+  RefreshCw,
+  Search,
+  User,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +40,6 @@ import api from "@/lib/api";
 import { toast } from "sonner";
 import { HR_EMPLOYEES } from "@/lib/employees";
 import { useAuth } from "@/context/AuthContext";
-import api from "@/lib/api";
 
 interface ProductionTrackingTabProps {
   initialSelectedBatchId?: number | null;
@@ -60,6 +71,7 @@ const DEFAULT_BOMS: BomOption[] = [
   {
     recipeId: 1,
     recipeName: "Standard Ube Halaya Formula A (Classic)",
+    productId: 1,
     outputYield: 1,
     ingredients: [
       { itemId: 101, itemName: "Fresh Purple Yam (Ube)", supplierName: "Highland Agri Corp", standardQty: 0.3, uom: "KG", stock: 150, suggestedLot: "LOT-UB-2026-088", expiry: "2026-10-15" },
@@ -72,6 +84,7 @@ const DEFAULT_BOMS: BomOption[] = [
   {
     recipeId: 2,
     recipeName: "Special Ube Halaya with Cheese Formula B",
+    productId: 1,
     outputYield: 1,
     ingredients: [
       { itemId: 101, itemName: "Fresh Purple Yam (Ube)", supplierName: "Highland Agri Corp", standardQty: 0.36, uom: "KG", stock: 150, suggestedLot: "LOT-UB-2026-088", expiry: "2026-10-15" },
@@ -89,15 +102,22 @@ const MR_STORAGE_KEY = "production_material_requests_v3";
 const STAGE_LOGS_KEY = "production_stage_logs_v3";
 const PACKAGING_STORAGE_KEY = "production_packaging_data_v3";
 
+const formatLocalDate = (value?: string) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString();
+};
+
 export default function ProductionTrackingTab({
   initialSelectedBatchId,
   isInventoryManager,
   isHeadCook,
 }: ProductionTrackingTabProps) {
   const { user } = useAuth();
-  const [requests, setRequests] = useState<ProductionRequest[]>(() =>
-    productionStorage.getRequests()
-  );
+  const [requests, setRequests] = useState<ProductionRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [boms, setBoms] = useState<BomOption[]>(DEFAULT_BOMS);
+  const [activeStepTab, setActiveStepTab] = useState<number | null>(null);
 
   // Material requests stored locally for coordinating Step 2, 3, 4
   const [materialRequests, setMaterialRequests] = useState<MaterialRequest[]>([]);
@@ -238,7 +258,7 @@ export default function ProductionTrackingTab({
       setLoading(true);
       const [batchesRes, recipesRes, itemsRes] = await Promise.all([
         api.get("/api/ProductionBatches"),
-        api.get("/api/Recipes"),
+        api.get("/api/recipes"),
         api.get("/api/Items"),
       ]);
 
@@ -334,8 +354,8 @@ export default function ProductionTrackingTab({
   const selectedBatch = requests.find((r) => r.batchId === selectedBatchId);
 
   const selectedBom =
-    AVAILABLE_BOMS.find((b) => b.recipeId === (selectedBatch?.recipeId ?? selectedBomId)) ||
-    AVAILABLE_BOMS[0];
+    boms.find((b) => b.recipeId === (selectedBatch?.recipeId ?? selectedBomId)) ||
+    boms[0] || DEFAULT_BOMS[0];
 
   // Calculate current waterfall step (1 to 8)
   const getBatchStep = (batch?: ProductionRequest): number => {
@@ -376,6 +396,34 @@ export default function ProductionTrackingTab({
   const activeMR =
     materialRequests.find((m) => m.batchId === selectedBatch?.batchId) ||
     selectedBatch?.materialRequest;
+
+  const prInitialData = useMemo<PurchaseRequisition | undefined>(() => {
+    if (!activeMR) return undefined;
+    const shortfallItems = activeMR.items.filter((item) => item.isShortfall);
+    if (shortfallItems.length === 0) return undefined;
+
+    return {
+      prId: 0,
+      prNumber: "",
+      department: "Production",
+      requestedBy: activeMR.submittedBy,
+      requestDate: new Date().toISOString(),
+      requiredDate: activeMR.neededDate,
+      status: "Draft",
+      requestType: "Production Shortfall",
+      priority: selectedBatch?.priority || "Normal",
+      purpose: `Material shortfall for ${activeMR.batchNumber}`,
+      notes: `Generated from Material Request ${activeMR.mrId}.`,
+      items: shortfallItems.map((item) => ({
+        itemId: item.itemId,
+        itemCode: "",
+        itemName: item.itemName,
+        uomName: item.uom,
+        actualInventory: item.availableStock,
+        requestedQuantity: Math.max(0, item.requiredQty - item.availableStock),
+      })),
+    };
+  }, [activeMR, selectedBatch?.priority]);
 
   // Trackable batches (Approved, In Progress, Passed QA, Completed)
   const allTrackableBatches = requests.filter(
@@ -542,7 +590,7 @@ export default function ProductionTrackingTab({
 
     try {
       setRequestingShortfallItemId(item.itemId);
-      const response = await api.post("/api/scms/api/PurchaseRequisitions", {
+      const response = await api.post("/api/purchase-requisitions", {
         requestedBy,
         department: user?.roles?.some((role) => role.toLowerCase().includes("cook"))
           ? "Production"
@@ -557,8 +605,18 @@ export default function ProductionTrackingTab({
       });
 
       const created = response.data?.data;
-      productionStorage.markShortfallRequested(mr.mrId, item.itemId, created?.prNumber);
-      refreshData();
+      saveMaterialRequests(materialRequests.map((request) =>
+        request.mrId === mr.mrId
+          ? {
+              ...request,
+              items: request.items.map((requestItem) =>
+                requestItem.itemId === item.itemId
+                  ? { ...requestItem, shortfallRequested: true, linkedPrNumber: created?.prNumber }
+                  : requestItem
+              ),
+            }
+          : request
+      ));
       toast.success(`Purchase Requisition ${created?.prNumber || "created"} for ${item.itemName}.`);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || "Failed to create the shortfall request.");
@@ -877,30 +935,40 @@ export default function ProductionTrackingTab({
         </div>
 
         {/* Issuance Execution Mode */}
-        {isIssuanceMode && activeMR ? (
+        {activeMR && (
           <div className="rounded-xl border border-border bg-card shadow-xs p-6 space-y-6">
-            <div className="flex items-center justify-between border-b border-border pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
               <div>
                 <h3 className="text-base font-bold text-foreground">
-                  Scan & Verify Raw Materials for {activeMR.mrId}
+                  {isIssuanceMode ? "Scan & Verify Raw Materials for " : "Stock Verification for "} {activeMR.mrId}
                 </h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Batch: {activeMR.batchNumber} &bull; Product: {activeMR.productName}
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsIssuanceMode(false)}
-                className="h-8 text-xs font-semibold gap-1.5 cursor-pointer"
-              >
-                <ArrowLeft size={13} /> Back to Stock Verification
-              </Button>
-            </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* If in stock check and has shortfall -> Create PR */}
-                    {!isIssuanceMode && activeMR.items.some((i) => i.isShortfall) && (
+              <div className="flex items-center gap-2 shrink-0">
+                {isIssuanceMode ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsIssuanceMode(false)}
+                      className="h-8 text-xs font-semibold gap-1.5 cursor-pointer"
+                    >
+                      <ArrowLeft size={13} /> Back to Stock Verification
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedMRId(null)}
+                      className="h-8 text-xs font-semibold gap-1.5 cursor-pointer"
+                    >
+                      <ArrowLeft size={13} /> Back
+                    </Button>
+                    {activeMR.items.some((i) => i.isShortfall) && (
                       <Button
                         size="sm"
                         onClick={() => setIsPROpen(true)}
@@ -909,9 +977,7 @@ export default function ProductionTrackingTab({
                         Create Purchase Requisition
                       </Button>
                     )}
-
-                    {/* If in stock check and sufficient -> Proceed to Material Issuance */}
-                    {!isIssuanceMode && !activeMR.items.some((i) => i.isShortfall) && (
+                    {!activeMR.items.some((i) => i.isShortfall) && (
                       <Button
                         size="sm"
                         onClick={() => setIsIssuanceMode(true)}
@@ -920,349 +986,128 @@ export default function ProductionTrackingTab({
                         Proceed to Material Issuance
                       </Button>
                     )}
+                  </>
+                )}
+              </div>
+            </div>
 
-                    {/* In Issuance Mode: Issue to Production button */}
-                    {isIssuanceMode && (
-                      <Button
-                        disabled={!activeMR.items.every((i) => i.isScanned)}
-                        onClick={() => handleIssueMaterials(activeMR.mrId)}
-                        className="h-9 px-4 text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 transition-colors rounded-xl shadow-xs cursor-pointer"
-                      >
-                        Issue to Production
-                      </Button>
-                    )}
-                  </div>
+            {/* Details Form Grid styled like PRDetailsModal */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1.5 block">
+                    Product
+                  </label>
+                  <p className="text-sm font-semibold text-foreground">
+                    {activeMR.productName}
+                  </p>
                 </div>
-
-                {/* Details Form Grid styled like PRDetailsModal */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-muted-foreground">MR Number</label>
-                    <Input readOnly value={activeMR.mrId} className="h-9 font-mono text-xs bg-muted/40 cursor-not-allowed border-border" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-muted-foreground">Batch Number</label>
-                    <Input readOnly value={activeMR.batchNumber} className="h-9 font-mono text-xs bg-muted/40 cursor-not-allowed border-border" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-muted-foreground">Product &amp; Recipe</label>
-                    <Input readOnly value={`${activeMR.productName} (${activeMR.recipeName})`} className="h-9 text-xs bg-muted/40 cursor-not-allowed border-border" />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-muted-foreground">Date Needed</label>
-                    <Input readOnly value={new Date(activeMR.neededDate).toLocaleDateString()} className="h-9 font-mono text-xs bg-muted/40 cursor-not-allowed border-border" />
-                  </div>
+                <div>
+                  <label className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1.5 block">
+                    Recipe / Formula
+                  </label>
+                  <p className="text-sm font-medium text-foreground">{activeMR.recipeName}</p>
                 </div>
+              </div>
 
-                {/* Table of Materials styled like PRDetailsModal Requested Supplies Table */}
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-foreground">
-                      Requested Supplies &amp; Ingredients
-                    </h3>
-                    <span className="text-xs text-muted-foreground">
-                      {activeMR.items.length} ingredient(s) required
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1.5 block">
+                    Required Date
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">
+                      {formatLocalDate(activeMR.neededDate)}
                     </span>
                   </div>
-
-                  <div className="overflow-x-auto rounded-xl border border-border bg-card">
-                    <table className="w-full text-xs text-left">
-                      <thead className="bg-muted/40 text-muted-foreground font-semibold uppercase tracking-wider text-[11px] border-b border-border">
-                        <tr>
-                          <th className="px-4 py-3">Ingredient</th>
-                          <th className="px-4 py-3">Required Qty</th>
-                          <th className="px-4 py-3">Available Stock</th>
-                          <th className="px-4 py-3">Stock Status</th>
-                          {!isIssuanceMode && <th className="px-4 py-3 text-right">Shortfall Action</th>}
-                          {isIssuanceMode && <th className="px-4 py-3">Suggested Lot</th>}
-                          {isIssuanceMode && <th className="px-4 py-3">Expiry Date</th>}
-                          {isIssuanceMode && <th className="px-4 py-3 text-right">QR Scan Verification</th>}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {activeMR.items.map((item) => (
-                          <tr key={item.itemId} className="hover:bg-muted/10 transition-colors">
-                            <td className="px-4 py-3 font-semibold text-foreground">
-                              {item.itemName}
-                            </td>
-                            <td className="px-4 py-3 font-mono font-bold">
-                              {item.requiredQty} {item.uom}
-                            </td>
-                            <td className="px-4 py-3 font-mono text-muted-foreground">
-                              {item.availableStock} {item.uom}
-                            </td>
-                            <td className="px-4 py-3">
-                              <span
-                                className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full ${
-                                  item.isShortfall
-                                    ? "bg-red-100 text-red-700 border border-red-400 font-bold dark:bg-red-950 dark:text-red-300"
-                                    : "bg-foreground text-background"
-                                }`}
-                              >
-                                {item.isShortfall && <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />}
-                                {item.isShortfall ? `Shortfall: ${Math.max(0, item.requiredQty - item.availableStock)} ${item.uom}` : "Sufficient"}
-                              </span>
-                            </td>
-                            {!isIssuanceMode && (
-                              <td className="px-4 py-3 text-right">
-                                {item.isShortfall ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={item.shortfallRequested || requestingShortfallItemId === item.itemId}
-                                    onClick={() => handleRequestShortfall(activeMR, item)}
-                                    className="h-7 border-red-400 px-3 text-xs font-bold text-red-700 hover:bg-red-50 disabled:opacity-60"
-                                  >
-                                    {item.shortfallRequested
-                                      ? item.linkedPrNumber || "Requested"
-                                      : requestingShortfallItemId === item.itemId
-                                        ? "Requesting..."
-                                        : "Request"}
-                                  </Button>
-                                ) : (
-                                  <span className="text-muted-foreground">—</span>
-                                )}
-                              </td>
-                            )}
-                            {isIssuanceMode && (
-                              <td className="px-4 py-3 font-mono font-bold text-foreground">
-                                {item.suggestedLot}
-                              </td>
-                            )}
-                            {isIssuanceMode && (
-                              <td className="px-4 py-3 text-muted-foreground font-mono">
-                                {item.suggestedExpiry}
-                              </td>
-                            )}
-                            {isIssuanceMode && (
-                              <td className="px-4 py-3 text-right">
-                                {item.isScanned ? (
-                                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-foreground">
-                                    Verified ✓
-                                  </span>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleOpenScan(item)}
-                                    className="h-7 px-3 text-xs font-semibold border-border hover:bg-muted cursor-pointer"
-                                  >
-                                    Scan
-                                  </Button>
-                                )}
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1.5 block">
+                    Requested By
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-foreground">
+                      {activeMR.submittedBy}
+                    </span>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* ── TAB 2: Material Issued (Issued to Production) ── */}
-        {invMainTab === "issued" && (
-          <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm min-h-[300px]">
-            {issuedMRs.length === 0 ? (
-              <div className="p-12 text-center text-muted-foreground text-xs font-medium">
-                No issued material records found matching your search.
-              </div>
-            ) : (
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-border bg-muted/40">
-                    <th className="px-4 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">MR NUMBER</th>
-                    <th className="px-4 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">BATCH NUMBER</th>
-                    <th className="px-4 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">PRODUCT NAME</th>
-                    <th className="px-4 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">RECIPE FORMULA</th>
-                    <th className="px-4 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">DATE ISSUED</th>
-                    <th className="px-4 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">ISSUED BY</th>
-                    <th className="px-4 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">STATUS</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {activeMR.items.map((item) => (
-                    <tr key={item.itemId} className="hover:bg-muted/30">
-                      <td className="py-3 px-4 font-semibold text-foreground">{item.itemName}</td>
-                      <td className="py-3 px-4 font-mono font-bold">
-                        {item.requiredQty} {item.uom}
-                      </td>
-                      <td className="py-3 px-4 font-mono">{item.suggestedLot}</td>
-                      <td className="py-3 px-4 text-muted-foreground">{item.suggestedExpiry}</td>
-                      <td className="py-3 px-4">
-                        {item.isScanned ? (
-                          <span className="font-semibold text-foreground flex items-center gap-1">
-                            <CheckCircle2 size={13} className="text-emerald-500" /> {item.scannedLot}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground italic">Pending Scan</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleOpenScan(item)}
-                          className="h-7 text-xs font-semibold gap-1 cursor-pointer"
-                        >
-                          <QrCode size={12} /> {item.isScanned ? "Re-Scan" : "Scan QR"}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-border">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  activeMR.items.forEach((item) => {
-                    handleScanSuccess(item.suggestedLot);
-                  });
-                }}
-                className="h-8 text-xs font-semibold cursor-pointer"
-              >
-                Auto-Scan All
-              </Button>
-              <Button
-                onClick={() => handleIssueMaterials(activeMR.mrId)}
-                disabled={!activeMR.items.every((i) => i.isScanned)}
-                className="h-8 px-4 text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 cursor-pointer disabled:opacity-50"
-              >
-                Issue to Production
-              </Button>
-            </div>
-          </div>
-        ) : selectedMRId && activeMR ? (
-          /* Stock Verification & Availability Table Screen */
-          <div className="rounded-xl border border-border bg-card shadow-xs p-6 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-              <div>
-                <h3 className="text-base font-bold text-foreground">
-                  Stock Verification for {activeMR.mrId}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Batch: {activeMR.batchNumber} &bull; Product: {activeMR.productName} &bull; Target Needed:{" "}
-                  {new Date(activeMR.neededDate).toLocaleDateString()}
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedMRId(null)}
-                className="h-8 text-xs font-semibold gap-1.5 cursor-pointer self-start sm:self-auto"
-              >
-                <ArrowLeft size={13} /> Back to Requests
-              </Button>
-            </div>
-
-            {/* Banner based on shortfall/sufficient */}
-            {(() => {
-              const shortfallItems = activeMR.items.filter(
-                (i) => i.isShortfall || i.availableStock < i.requiredQty
-              );
-              const hasShortfall = shortfallItems.length > 0;
-
-              return hasShortfall ? (
-                <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-start gap-3 text-amber-900 dark:text-amber-200">
-                  <AlertTriangle className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-bold">
-                      Shortfall Detected ({shortfallItems.length} Item{shortfallItems.length > 1 ? "s" : ""})
-                    </h4>
-                    <p className="text-xs opacity-90">
-                      One or more requested raw materials do not have sufficient warehouse inventory. Create a
-                      Purchase Requisition (PR) to procure the shortage before issuing materials to production.
-                    </p>
-                  </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase mb-1.5 block">
+                    Status
+                  </label>
+                  <StatusBadge status={activeMR.status} />
                 </div>
-              ) : (
-                <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-start gap-3 text-emerald-900 dark:text-emerald-200">
-                  <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-bold">All Materials Sufficient ✓</h4>
-                    <p className="text-xs opacity-90">
-                      All required items have sufficient warehouse stock to fulfill this batch. Proceed to material
-                      issuance to scan and release inventory.
-                    </p>
-                  </div>
-                </div>
-              );
-            })()}
+              </div>
+            </div>
 
-            {/* Verification Table */}
-            <div className="border border-border rounded-xl overflow-hidden">
+            <div className="overflow-x-auto rounded-xl border border-border">
               <table className="w-full text-xs text-left">
-                <thead className="bg-muted/40 text-muted-foreground uppercase text-[10px] border-b border-border">
+                <thead className="bg-muted/40 text-muted-foreground font-semibold uppercase tracking-wider text-[10px] border-b border-border">
                   <tr>
-                    <th className="py-2.5 px-4">Supply Item</th>
-                    <th className="py-2.5 px-4">Required Qty</th>
-                    <th className="py-2.5 px-4">Available Stock</th>
-                    <th className="py-2.5 px-4">Stock Status</th>
-                    <th className="py-2.5 px-4">Deficit</th>
-                    <th className="py-2.5 px-4 text-right">Action</th>
+                    <th className="py-3 px-4">Material</th>
+                    <th className="py-3 px-4">Required Qty</th>
+                    <th className="py-3 px-4">Available Stock</th>
+                    {isIssuanceMode && (
+                      <>
+                        <th className="py-3 px-4">Lot / Batch</th>
+                        <th className="py-3 px-4">Expiry Date</th>
+                        <th className="py-3 px-4">Scan Status</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {activeMR.items.map((item) => {
-                    const isDeficit = item.isShortfall || item.availableStock < item.requiredQty;
-                    const deficitAmount = Math.max(
-                      0,
-                      Math.round((item.requiredQty - item.availableStock) * 10) / 10
-                    );
-
+                    const isShortfall = !isIssuanceMode && item.availableStock < item.requiredQty;
                     return (
                       <tr key={item.itemId} className="hover:bg-muted/30">
                         <td className="py-3 px-4 font-semibold text-foreground">
                           {item.itemName}
                         </td>
-                        <td className="py-3 px-4 font-mono font-bold text-foreground">
+                        <td className="py-3 px-4 font-mono font-bold">
                           {item.requiredQty} {item.uom}
                         </td>
-                        <td className="py-3 px-4 font-mono text-muted-foreground">
-                          {item.availableStock} {item.uom}
-                        </td>
                         <td className="py-3 px-4">
-                          {isDeficit ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                              <AlertTriangle size={11} /> Shortfall
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                              <CheckCircle2 size={11} /> Sufficient
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 font-mono">
-                          {isDeficit ? (
-                            <span className="text-destructive font-bold">
-                              -{deficitAmount} {item.uom}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">0 {item.uom}</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          {isDeficit ? (
-                            <Button
-                              size="sm"
-                              onClick={() => handleOpenCreatePR([item], activeMR)}
-                              className="h-7 px-2.5 text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 gap-1.5 cursor-pointer shadow-xs"
-                            >
-                              <ShoppingCart size={12} /> Create PR
-                            </Button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground font-medium flex items-center justify-end gap-1">
-                              <CheckCircle2 size={12} className="text-emerald-500" /> Ready
+                          <span className={`font-mono font-semibold ${isShortfall ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}`}>
+                            {item.availableStock} {item.uom}
+                          </span>
+                          {isShortfall && (
+                            <span className="ml-2 text-[10px] text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full font-bold">
+                              SHORTFALL
                             </span>
                           )}
                         </td>
+                        {isIssuanceMode && (
+                          <>
+                            <td className="py-3 px-4 font-mono">{item.suggestedLot}</td>
+                            <td className="py-3 px-4 text-muted-foreground">{item.suggestedExpiry}</td>
+                            <td className="py-3 px-4">
+                              {item.isScanned ? (
+                                <span className="font-semibold text-foreground flex items-center gap-1">
+                                  <CheckCircle2 size={13} className="text-emerald-500" /> {item.scannedLot}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground italic">Pending Scan</span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleOpenScan(item)}
+                                className="h-7 text-xs font-semibold gap-1 cursor-pointer"
+                              >
+                                <QrCode size={12} /> {item.isScanned ? "Re-Scan" : "Scan QR"}
+                              </Button>
+                            </td>
+                          </>
+                        )}
                       </tr>
                     );
                   })}
@@ -1270,55 +1115,34 @@ export default function ProductionTrackingTab({
               </table>
             </div>
 
-            {/* Bottom Actions */}
-            {(() => {
-              const shortfallItems = activeMR.items.filter(
-                (i) => i.isShortfall || i.availableStock < i.requiredQty
-              );
-              const hasShortfall = shortfallItems.length > 0;
-
-              return (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border">
-                  {hasShortfall ? (
-                    <>
-                      <p className="text-xs text-muted-foreground italic">
-                        Generate a Purchase Requisition for shortfall materials or proceed with partial issuance.
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          onClick={() => handleOpenCreatePR(shortfallItems, activeMR)}
-                          className="h-9 px-4 text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 gap-1.5 cursor-pointer shadow-xs"
-                        >
-                          <ShoppingCart size={13} /> Create PR for Shortfalls ({shortfallItems.length})
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsIssuanceMode(true)}
-                          className="h-9 px-4 text-xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer"
-                        >
-                          Proceed to Issuance (Override)
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                        <CheckCircle2 size={14} /> Stock verified &amp; ready for lot scanning
-                      </p>
-                      <Button
-                        onClick={() => setIsIssuanceMode(true)}
-                        className="h-9 px-5 text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 gap-2 cursor-pointer shadow-xs"
-                      >
-                        Proceed to Material Issuance <ArrowRight size={14} />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
+            {isIssuanceMode && (
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    activeMR.items.forEach((item) => {
+                      handleScanSuccess(item.suggestedLot);
+                    });
+                  }}
+                  className="h-8 text-xs font-semibold cursor-pointer"
+                >
+                  Auto-Scan All
+                </Button>
+                <Button
+                  onClick={() => handleIssueMaterials(activeMR.mrId)}
+                  disabled={!activeMR.items.every((i) => i.isScanned)}
+                  className="h-8 px-4 text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 cursor-pointer disabled:opacity-50"
+                >
+                  Issue to Production
+                </Button>
+              </div>
+            )}
           </div>
-        ) : (
-          /* Table of Requests */
+        )}
+
+        {/* Table of Requests */}
+        {!activeMR && (
           <div className="rounded-xl border border-border bg-card overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
@@ -1336,36 +1160,35 @@ export default function ProductionTrackingTab({
                 <tbody className="divide-y divide-border">
                   {(invMainTab === "requests" ? pendingMRs : issuedMRs).length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center text-muted-foreground">
-                        No material requests found in this view.
+                      <td colSpan={7} className="py-12 text-center text-muted-foreground text-xs">
+                        No material requests found.
                       </td>
                     </tr>
                   ) : (
                     (invMainTab === "requests" ? pendingMRs : issuedMRs).map((mr) => {
-                      const hasDeficit = mr.items.some(
-                        (i) => i.isShortfall || i.availableStock < i.requiredQty
-                      );
-
+                      const hasShortfall = mr.items.some((i) => i.isShortfall);
                       return (
-                        <tr key={mr.mrId} className="hover:bg-muted/30">
+                        <tr key={mr.mrId} className="hover:bg-muted/30 transition-colors">
                           <td className="py-3 px-4 font-mono font-bold text-foreground">
                             {mr.mrId}
                           </td>
-                          <td className="py-3 px-4 font-mono text-foreground">{mr.batchNumber}</td>
+                          <td className="py-3 px-4 font-mono font-semibold text-foreground">
+                            {mr.batchNumber}
+                          </td>
                           <td className="py-3 px-4 font-semibold text-foreground">
                             {mr.productName}
                           </td>
                           <td className="py-3 px-4 text-muted-foreground">
-                            {new Date(mr.neededDate).toLocaleDateString()}
+                            {formatLocalDate(mr.neededDate)}
                           </td>
                           <td className="py-3 px-4">
-                            {hasDeficit ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                                <AlertTriangle size={10} /> Shortfall
+                            {hasShortfall ? (
+                              <span className="flex items-center gap-1.5 text-destructive font-medium">
+                                <AlertCircle size={14} /> Shortfall
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                                <CheckCircle2 size={10} /> Sufficient
+                              <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                                <CheckCircle2 size={14} /> Sufficient
                               </span>
                             )}
                           </td>
@@ -1373,8 +1196,9 @@ export default function ProductionTrackingTab({
                             <StatusBadge status={mr.status} />
                           </td>
                           <td className="py-3 px-4 text-right">
-                            {invMainTab === "requests" ? (
+                            {mr.status === "Pending" ? (
                               <Button
+                                variant="outline"
                                 size="sm"
                                 onClick={() => {
                                   setSelectedMRId(mr.mrId);
@@ -1382,7 +1206,7 @@ export default function ProductionTrackingTab({
                                 }}
                                 className="h-7 px-3 text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 cursor-pointer"
                               >
-                                Check Stock &amp; Verify
+                                Check Stock & Verify
                               </Button>
                             ) : (
                               <Button
@@ -1764,6 +1588,8 @@ export default function ProductionTrackingTab({
                         {selectedBom.ingredients.map((ing) => {
                           const multiplier = selectedBatch.targetYield;
                           const scaled = Math.round(ing.standardQty * multiplier * 1000) / 1000;
+                          const deficit = Math.max(0, scaled - ing.stock);
+                          const isDeficit = deficit > 0;
                           return (
                             <tr key={ing.itemId} className="hover:bg-muted/10">
                               <td className="py-3 px-4 font-semibold text-foreground">

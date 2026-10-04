@@ -59,8 +59,8 @@ export default function ViewInventory() {
           ? "Finished Good"
           : "";
       const path = categoryFilter
-        ? `/api/scms/api/Inventories?categoryName=${categoryFilter}&page=${page}&pageSize=10`
-        : `/api/scms/api/Inventories?page=${page}&pageSize=10`;
+        ? `/api/inventory?categoryName=${categoryFilter}&page=${page}&pageSize=10`
+        : `/api/inventory?page=${page}&pageSize=10`;
 
       let res;
       try {
@@ -68,8 +68,8 @@ export default function ViewInventory() {
       } catch {
         res = await api.get(
           categoryFilter
-            ? `/api/Inventories?categoryName=${categoryFilter}&page=${page}&pageSize=10`
-            : `/api/Inventories?page=${page}&pageSize=10`
+            ? `/api/inventory?categoryName=${categoryFilter}&page=${page}&pageSize=10`
+            : `/api/inventory?page=${page}&pageSize=10`
         );
       }
 
@@ -88,9 +88,9 @@ export default function ViewInventory() {
       // 1. Fetch inventories for total count & low-stock count
       let invRes;
       try {
-        invRes = await api.get("/api/scms/api/Inventories?pageSize=100");
+        invRes = await api.get("/api/inventory?pageSize=100");
       } catch {
-        invRes = await api.get("/api/Inventories?pageSize=100");
+        invRes = await api.get("/api/inventory?pageSize=100");
       }
 
       if (invRes.data?.success) {
@@ -125,9 +125,9 @@ export default function ViewInventory() {
       // 2. Fetch available lots for expiring soon count (<= 30 days)
       let lotsRes;
       try {
-        lotsRes = await api.get("/api/scms/api/Lots?status=Available&pageSize=100");
+        lotsRes = await api.get("/api/inventory/lots?status=Available&pageSize=100");
       } catch {
-        lotsRes = await api.get("/api/Lots?status=Available&pageSize=100");
+        lotsRes = await api.get("/api/inventory/lots?status=Available&pageSize=100");
       }
 
       if (lotsRes.data?.success) {

@@ -137,9 +137,9 @@ export default function CreateBatchModal({ open, onClose, onCreated }: Props) {
         setIsLoadingData(true);
         try {
           const [prodRes, recipeRes, itemRes] = await Promise.all([
-            api.get("/api/scms/api/FinishedProducts"),
-            api.get("/api/scms/api/Recipes"),
-            api.get("/api/scms/api/Items?pageSize=1000"),
+            api.get("/api/finished-products"),
+            api.get("/api/recipes"),
+            api.get("/api/items?pageSize=1000"),
           ]);
           setProducts(prodRes.data.data?.items || prodRes.data.data || []);
           setRecipes(recipeRes.data.data?.items || recipeRes.data.data || []);
@@ -225,7 +225,7 @@ export default function CreateBatchModal({ open, onClose, onCreated }: Props) {
     if (!isFormValid) return;
     setIsSubmitting(true);
     try {
-      await api.post("/api/scms/api/ProductionBatches", {
+      await api.post("/api/ProductionBatches", {
         recipeId: Number(selectedVariantId),
         productId: Number(finishedProduct),
         batchSize: Number(userTargetYield),

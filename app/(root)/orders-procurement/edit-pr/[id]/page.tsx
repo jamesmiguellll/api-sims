@@ -20,7 +20,7 @@ export default function EditPRPage() {
     const fetchPR = async () => {
       try {
         setLoading(true);
-        const res = await api.get(`/api/scms/api/PurchaseRequisitions/${id}`);
+        const res = await api.get(`/api/purchase-requisitions/${id}`);
         if (res.data?.success && res.data?.data) {
           setPrData(res.data.data);
         } else {

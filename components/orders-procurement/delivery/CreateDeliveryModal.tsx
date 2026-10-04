@@ -99,8 +99,8 @@ export function CreateDeliveryModal({
       try {
         setLoadingPOs(true);
         const [delivRes, poRes] = await Promise.allSettled([
-          api.get("/api/scms/api/deliveries?page=1&pageSize=1000"),
-          api.get("/api/scms/api/PurchaseOrders?page=1&pageSize=1000&eligibleForDelivery=true"),
+          api.get("/api/deliveries?page=1&pageSize=1000"),
+          api.get("/api/purchase-orders?page=1&pageSize=1000&eligibleForDelivery=true"),
         ]);
 
         let deliveryList: any[] = [];
@@ -136,7 +136,7 @@ export function CreateDeliveryModal({
             candidate.map(async (po) => {
               try {
                 let poItems: any[] = [];
-                const outRes = await api.get(`/api/scms/api/deliveries/po/${po.poId}/outstanding`);
+                const outRes = await api.get(`/api/deliveries/po/${po.poId}/outstanding`);
                 if (outRes.data?.success && Array.isArray(outRes.data.data) && outRes.data.data.length > 0) {
                   poItems = outRes.data.data;
                 } else if (po.items && po.items.length > 0) {
@@ -237,7 +237,7 @@ export function CreateDeliveryModal({
       try {
         setLoadingItems(true);
         setError(null);
-        const res = await api.get(`/api/scms/api/deliveries/po/${selectedPoId}/outstanding`);
+        const res = await api.get(`/api/deliveries/po/${selectedPoId}/outstanding`);
         if (res.data?.success && Array.isArray(res.data.data)) {
           const rows: ItemRow[] = res.data.data.map((i: any) => {
             const ordered = Number(i.poOrderedQuantity) || 0;
@@ -447,7 +447,7 @@ export function CreateDeliveryModal({
         items: itemsToSchedule,
       };
 
-      const res = await api.post("/api/scms/api/deliveries", payload);
+      const res = await api.post("/api/deliveries", payload);
       if (res.data?.success) {
         onSuccess();
       } else {

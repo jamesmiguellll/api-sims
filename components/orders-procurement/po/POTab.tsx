@@ -93,7 +93,7 @@ export function POTab() {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get("/api/scms/api/PurchaseOrders?page=1&pageSize=1000");
+      const res = await api.get("/api/purchase-orders?page=1&pageSize=1000");
       if (res.data?.success) {
         const raw = res.data.data?.items || res.data.data || [];
         setOrders(raw.map(mapPO));
@@ -157,7 +157,7 @@ export function POTab() {
   // Status update handler
   const handleStatusUpdate = async (poId: number, status: string, adminNotes?: string) => {
     try {
-      await api.put(`/api/scms/api/PurchaseOrders/${poId}/status`, {
+      await api.put(`/api/purchase-orders/${poId}/status`, {
         status,
         adminNotes: adminNotes || null,
       });

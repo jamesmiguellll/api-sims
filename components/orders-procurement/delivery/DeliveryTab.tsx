@@ -57,7 +57,7 @@ export function DeliveryTab() {
   const fetchDeliveries = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get("/api/scms/api/deliveries?page=1&pageSize=1000");
+      const res = await api.get("/api/deliveries?page=1&pageSize=1000");
       if (res.data?.success) {
         const raw = res.data.data?.items || res.data.data || [];
         setDeliveries(raw);

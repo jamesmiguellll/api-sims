@@ -53,13 +53,13 @@ export default function GrnTab({ onPosted }: GrnTabProps) {
     setLoading(true);
     try {
       // 1. Fetch posted GRNs (non-draft)
-      const grnRes = await api.get("/api/GoodsReceipts");
+      const grnRes = await api.get("/api/goods-receipts");
       const allGrns: GRN[] = Array.isArray(grnRes.data?.data) ? grnRes.data.data : [];
       const posted = allGrns.filter((g) => g.status !== "Draft");
       setPostedGrns(posted);
 
       // 2. Only arrived shipments are eligible. The server validates line-level eligibility again.
-      const delRes = await api.get("/api/Deliveries");
+      const delRes = await api.get("/api/deliveries");
       const deliveryPayload = delRes.data?.data;
       const allDeliveries: ArrivedDelivery[] = Array.isArray(deliveryPayload?.items)
         ? deliveryPayload.items

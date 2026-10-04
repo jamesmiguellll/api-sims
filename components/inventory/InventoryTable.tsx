@@ -75,9 +75,9 @@ export default function InventoryTable({
       try {
         let res;
         try {
-          res = await api.get(`/api/scms/api/Lots/byitem/${itemId}`);
+          res = await api.get(`/api/inventory/lots/byitem/${itemId}`);
         } catch {
-          res = await api.get(`/api/Lots/byitem/${itemId}`);
+          res = await api.get(`/api/inventory/lots/byitem/${itemId}`);
         }
 
         if (res.data?.success) {

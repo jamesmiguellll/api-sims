@@ -89,18 +89,18 @@ export function MarkArrivedModal({
 
       // Try direct arrive endpoint
       let res = await api.put(
-        `/api/scms/api/deliveries/${delivery.deliveryId}/arrive`,
+        `/api/deliveries/${delivery.deliveryId}/arrive`,
         payload
       ).catch(async (err) => {
         // If transitioning from Scheduled requires dispatch first on older backend
         if (delivery.status === "Scheduled") {
           try {
-            await api.put(`/api/scms/api/deliveries/${delivery.deliveryId}/dispatch`, {
+            await api.put(`/api/deliveries/${delivery.deliveryId}/dispatch`, {
               dispatchedDate: new Date().toISOString(),
               carrier: delivery.carrier || "In-House Logistics",
             });
             return await api.put(
-              `/api/scms/api/deliveries/${delivery.deliveryId}/arrive`,
+              `/api/deliveries/${delivery.deliveryId}/arrive`,
               payload
             );
           } catch {

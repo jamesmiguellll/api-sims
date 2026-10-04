@@ -27,7 +27,7 @@ export default function AddQaModal({ open, onClose, onStartInspection }: AddQaMo
 
     // Fetch posted GRNs with status = "Received" (awaiting QA)
     api
-      .get("/api/GoodsReceipts")
+      .get("/api/goods-receipts")
       .then(({ data }) => {
         const all: GRN[] = Array.isArray(data?.data) ? data.data : [];
         // "Received" = posted GRN, QA not yet completed

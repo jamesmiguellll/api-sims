@@ -118,7 +118,7 @@ export default function SupplyModal({
 
         if (editingItem.itemId) {
           api
-            .get(`/api/scms/api/SupplierItems/by-item/${editingItem.itemId}`)
+            .get(`/api/supplier-items/by-item/${editingItem.itemId}`)
             .then((res) => {
               const list = res.data?.data || res.data || [];
               if (Array.isArray(list) && list.length > 0) {

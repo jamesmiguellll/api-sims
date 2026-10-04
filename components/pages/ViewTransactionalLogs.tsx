@@ -25,7 +25,7 @@ const parseLogTime = (ts: string): number => {
 const fetchLogs = async (type: string | null): Promise<LogEntry[]> => {
   const moduleType = type?.toLowerCase() || "supply";
   try {
-    const response = await api.get(`/api/scms/api/AuditLogs?type=${moduleType}`);
+    const response = await api.get(`/api/audit-logs?type=${moduleType}`);
     const resData = response.data;
     let list: LogEntry[] = [];
     if (Array.isArray(resData)) list = resData;

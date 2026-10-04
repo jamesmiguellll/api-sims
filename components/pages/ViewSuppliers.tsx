@@ -56,12 +56,12 @@ export default function ResourcesSuppliersPage() {
   const fetchData = async () => {
     try {
       const results = await Promise.allSettled([
-        api.get(`/api/scms/api/Items?page=1&pageSize=1000`),
-        api.get(`/api/scms/api/Suppliers?page=1&pageSize=1000`),
-        api.get("/api/scms/api/Recipes"),
-        api.get("/api/scms/api/FinishedProducts"),
-        api.get("/api/scms/api/Categories/supplies"),
-        api.get("/api/scms/api/UnitOfMeasures"),
+        api.get(`/api/items?page=1&pageSize=1000`),
+        api.get(`/api/suppliers?page=1&pageSize=1000`),
+        api.get("/api/recipes"),
+        api.get("/api/finished-products"),
+        api.get("/api/categories/supplies"),
+        api.get("/api/unit-of-measures"),
       ]);
       const [itemsRes, suppliersRes, recipesRes, fpRes, categoriesRes, uomsRes] = results.map((r) => (r.status === "fulfilled" ? r.value : null));
       if (itemsRes?.data?.success) {
@@ -101,10 +101,10 @@ export default function ResourcesSuppliersPage() {
       };
       let itemId: number;
       if (editingSupply) {
-        await api.put(`/api/scms/api/Items/${editingSupply.itemId}`, payload);
+        await api.put(`/api/items/${editingSupply.itemId}`, payload);
         itemId = editingSupply.itemId;
       } else {
-        const res = await api.post("/api/scms/api/Items", payload);
+        const res = await api.post("/api/items", payload);
         itemId = res?.data?.data?.itemId || res?.data?.itemId;
       }
       // Sync linked suppliers
@@ -112,19 +112,19 @@ export default function ResourcesSuppliersPage() {
         const targetSupplierIds: number[] = data.supplierIds || [];
         if (editingSupply) {
           try {
-            const curRes = await api.get(`/api/scms/api/SupplierItems/by-item/${itemId}`);
+            const curRes = await api.get(`/api/supplier-items/by-item/${itemId}`);
             const existingItems = curRes.data?.data || curRes.data || [];
             const existingIds: number[] = existingItems.map((s: any) => s.supplierId);
 
             const removedIds = existingIds.filter((id) => !targetSupplierIds.includes(id));
             await Promise.allSettled(
-              removedIds.map((supplierId) => api.delete(`/api/scms/api/SupplierItems/${supplierId}/${itemId}`).catch(() => {}))
+              removedIds.map((supplierId) => api.delete(`/api/supplier-items/${supplierId}/${itemId}`).catch(() => {}))
             );
 
             const addedIds = targetSupplierIds.filter((id) => !existingIds.includes(id));
             await Promise.allSettled(
               addedIds.map((supplierId) =>
-                api.post("/api/scms/api/SupplierItems", {
+                api.post("/api/supplier-items", {
                   SupplierId: supplierId,
                   ItemId: itemId,
                   UnitPrice: 0,
@@ -139,7 +139,7 @@ export default function ResourcesSuppliersPage() {
           } catch {
             await Promise.allSettled(
               targetSupplierIds.map((supplierId) =>
-                api.post("/api/scms/api/SupplierItems", {
+                api.post("/api/supplier-items", {
                   SupplierId: supplierId,
                   ItemId: itemId,
                   UnitPrice: 0,
@@ -155,7 +155,7 @@ export default function ResourcesSuppliersPage() {
         } else if (targetSupplierIds.length > 0) {
           await Promise.allSettled(
             targetSupplierIds.map((supplierId: number) =>
-              api.post("/api/scms/api/SupplierItems", {
+              api.post("/api/supplier-items", {
                 SupplierId: supplierId,
                 ItemId: itemId,
                 UnitPrice: 0,
@@ -178,8 +178,8 @@ export default function ResourcesSuppliersPage() {
 
   const handleSaveSupplier = async (data: any) => {
     try {
-      if (editingSupplier) await api.put(`/api/scms/api/Suppliers/${editingSupplier.supplierId}`, data);
-      else await api.post("/api/scms/api/Suppliers", data);
+      if (editingSupplier) await api.put(`/api/suppliers/${editingSupplier.supplierId}`, data);
+      else await api.post("/api/suppliers", data);
       setOpenSupplierModal(false); setEditingSupplier(null); setSupplierPage(1); fetchData();
     } catch { alert("Failed to save supplier."); }
   };
@@ -190,8 +190,8 @@ export default function ResourcesSuppliersPage() {
         recipeName: data.recipeName, productId: data.productId,
         notes: data.notes, isActive: data.isActive, ingredients: data.ingredients,
       };
-      if (editingRecipe) await api.put(`/api/scms/api/Recipes/${editingRecipe.recipeId}`, payload);
-      else await api.post("/api/scms/api/Recipes", payload);
+      if (editingRecipe) await api.put(`/api/recipes/${editingRecipe.recipeId}`, payload);
+      else await api.post("/api/recipes", payload);
       setOpenRecipeModal(false); setEditingRecipe(null); setRecipePage(1); fetchData();
     } catch { alert("Failed to save recipe."); }
   };

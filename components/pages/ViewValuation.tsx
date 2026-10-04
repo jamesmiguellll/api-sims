@@ -110,7 +110,7 @@ export default function ViewValuation() {
   const fetchValuation = async () => {
     setLoading(true);
     try {
-      const res = await api.get("/api/scms/api/Valuation?page=1&pageSize=1000");
+      const res = await api.get("/api/valuation?page=1&pageSize=1000");
       if (res.data?.success) {
         const raw = res.data.data?.items || res.data.data || [];
         setItems(raw.map((i: any) => ({

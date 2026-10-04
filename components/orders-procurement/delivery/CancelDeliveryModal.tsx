@@ -42,7 +42,7 @@ export function CancelDeliveryModal({
     try {
       setSubmitting(true);
       const res = await api.put(
-        `/api/scms/api/deliveries/${delivery.deliveryId}/cancel`,
+        `/api/deliveries/${delivery.deliveryId}/cancel`,
         { reason: reason.trim() }
       );
 

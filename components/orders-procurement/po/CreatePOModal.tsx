@@ -74,6 +74,7 @@ export function CreatePOModal({ open, initialPrId, initialPo, isEdit = false, on
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [itemSearch, setItemSearch] = useState("");
   const [confirmModal, setConfirmModal] = useState<"Draft" | "Pending Approval" | null>(null);
+  const [eta, setEta] = useState(() => new Date(Date.now() + 7 * 86400000).toISOString().split("T")[0]);
 
   useEffect(() => {
     if (open) {
@@ -102,7 +103,7 @@ export function CreatePOModal({ open, initialPrId, initialPo, isEdit = false, on
             requestedQty: it.poItemQuantity,
             remaining: it.poItemQuantity,
             orderQty: String(it.poItemQuantity),
-            totalPrice: String(it.totalPrice || it.lineTotal || 0),
+            unitPrice: Number(it.totalPrice || it.lineTotal || 0) / Math.max(1, Number(it.poItemQuantity)),
           }))
         );
         setNotes("");
@@ -139,14 +140,14 @@ export function CreatePOModal({ open, initialPrId, initialPo, isEdit = false, on
   const fetchApprovedPRs = async () => {
     setLoadingPRs(true);
     try {
-      const res = await api.get("/api/scms/api/PurchaseRequisitions?status=Approved");
+      const res = await api.get("/api/purchase-requisitions?status=Approved");
       if (res.data?.success) {
         const prs: PurchaseRequisition[] = res.data.data || [];
         const eligible: PurchaseRequisition[] = [];
         await Promise.all(
           prs.map(async (pr) => {
             try {
-              const ordRes = await api.get(`/api/scms/api/PurchaseOrders/pr/${pr.prId}/ordered-qty`);
+              const ordRes = await api.get(`/api/purchase-orders/pr/${pr.prId}/ordered-qty`);
               const orderedMap: Record<number, number> = {};
               if (ordRes.data?.success && Array.isArray(ordRes.data.data)) {
                 ordRes.data.data.forEach((o: any) => {
@@ -177,7 +178,7 @@ export function CreatePOModal({ open, initialPrId, initialPo, isEdit = false, on
 
   const fetchNextPoNumber = async () => {
     try {
-      const res = await api.get("/api/scms/api/PurchaseOrders/next-number");
+      const res = await api.get("/api/purchase-orders/next-number");
       if (res.data?.success && res.data.data) {
         setNextPoNumber(res.data.data);
       }
@@ -195,7 +196,7 @@ export function CreatePOModal({ open, initialPrId, initialPo, isEdit = false, on
       await Promise.all(
         itemIds.map(async (itemId) => {
           try {
-            const res = await api.get(`/api/scms/api/SupplierItems/by-item/${itemId}`);
+            const res = await api.get(`/api/supplier-items/by-item/${itemId}`);
             if (res.data?.success) {
               (res.data.data || []).forEach((s: any) => {
                 if (!supplierMap.has(s.supplierId)) {
@@ -217,8 +218,8 @@ export function CreatePOModal({ open, initialPrId, initialPo, isEdit = false, on
     try {
       // Fetch supplier catalog and already-ordered quantities in parallel
       const [catalogRes, orderedRes] = await Promise.all([
-        api.get(`/api/scms/api/SupplierItems/by-supplier/${supplierId}`),
-        api.get(`/api/scms/api/PurchaseOrders/pr/${pr.prId}/ordered-qty`),
+        api.get(`/api/supplier-items/by-supplier/${supplierId}`),
+        api.get(`/api/purchase-orders/pr/${pr.prId}/ordered-qty`),
       ]);
 
       const catalog: any[] = catalogRes.data?.success ? catalogRes.data.data || [] : [];
@@ -313,8 +314,7 @@ export function CreatePOModal({ open, initialPrId, initialPo, isEdit = false, on
     return activeRows.every((r) => {
       const qty = parseInt(r.orderQty, 10) || 0;
       if (!isEdit && qty > r.remaining) return false;
-      const price = parseFloat(r.totalPrice);
-      if (r.totalPrice === "" || isNaN(price) || price < 0) return false;
+      if (!Number.isFinite(r.unitPrice) || r.unitPrice <= 0) return false;
       return true;
     });
   }, [itemRows, isEdit]);
@@ -327,7 +327,7 @@ export function CreatePOModal({ open, initialPrId, initialPo, isEdit = false, on
       const payload = {
         prId: selectedPR?.prId ?? initialPo?.prId ?? null,
         supplierId: selectedSupplierId,
-        expectedArrivalDate: new Date(Date.now() + 7 * 86400000).toISOString(),
+        expectedArrivalDate: new Date(`${eta}T00:00:00`).toISOString(),
         totalAmount,
         requestedBy: user?.firstName
           ? `${user.firstName} ${user.lastName || ""}`.trim()
@@ -341,8 +341,8 @@ export function CreatePOModal({ open, initialPrId, initialPo, isEdit = false, on
       };
 
       const res = isEdit && initialPo?.poId
-        ? await api.put(`/api/scms/api/PurchaseOrders/${initialPo.poId}`, payload)
-        : await api.post("/api/scms/api/PurchaseOrders", payload);
+        ? await api.put(`/api/purchase-orders/${initialPo.poId}`, payload)
+        : await api.post("/api/purchase-orders", payload);
 
       if (res.data?.success) {
         onSuccess();

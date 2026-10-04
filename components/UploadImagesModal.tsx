@@ -90,13 +90,13 @@ export default function UploadImagesModal({
     for (const file of selectedFiles) {
       const formData = new FormData();
       formData.append("file", file);
-      await api.post(`/api/scms/api/ProductionBatches/${batchId}/images`, formData);
+      await api.post(`/api/ProductionBatches/${batchId}/images`, formData);
     }
   };
 
   const updateStage = async () => {
     if (!selectedStage) return;
-    await api.put(`/api/scms/api/ProductionBatches/${batchId}/stage`, {
+    await api.put(`/api/ProductionBatches/${batchId}/stage`, {
       stage: selectedStage,
     });
   };

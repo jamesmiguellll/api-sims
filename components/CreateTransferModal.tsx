@@ -107,8 +107,8 @@ export default function CreateTransferModal({
       setIsLoadingProducts(true);
       try {
         const [prodRes, invRes] = await Promise.all([
-          api.get("/api/scms/api/FinishedProducts"),
-          api.get("/api/scms/api/Inventories?pageSize=100"),
+          api.get("/api/finished-products"),
+          api.get("/api/inventory?pageSize=100"),
         ]);
         if (prodRes.data.success) {
           setProducts(prodRes.data.data?.items || prodRes.data.data || []);
@@ -164,7 +164,7 @@ export default function CreateTransferModal({
 
     try {
       if (mode === "edit" && initialData?.id) {
-        await api.put(`/api/scms/api/StockTransfers/${initialData.id}`, {
+        await api.put(`/api/stock-transfers/${initialData.id}`, {
           productId: Number(product),
           sourceLocationId: sourceLocationId ?? initialData.sourceLocationId ?? 1,
           destLocationId: Number(to),
@@ -176,7 +176,7 @@ export default function CreateTransferModal({
           setSubmitError("Could not determine source location. Ensure the product has inventory.");
           return;
         }
-        await api.post("/api/scms/api/StockTransfers", {
+        await api.post("/api/stock-transfers", {
           productId: Number(product),
           sourceLocationId: sourceLocationId,
           destLocationId: Number(to),

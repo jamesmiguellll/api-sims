@@ -88,7 +88,7 @@ export default function ViewMrp() {
   const loadRecipes = async () => {
     if (recipesLoaded) return;
     try {
-      const res = await api.get("/api/scms/api/Recipes?pageSize=100");
+      const res = await api.get("/api/recipes?pageSize=100");
       if (res.data?.success) {
         const raw = res.data.data?.items || res.data.data || [];
         setRecipes(raw.map((r: any) => ({ recipeId: r.recipeId, recipeName: r.recipeName || r.name })));
@@ -121,7 +121,7 @@ export default function ViewMrp() {
           batchCount: r.batchCount,
         })),
       };
-      const res = await api.post("/api/scms/api/Mrp/plan", body);
+      const res = await api.post("/api/mrp/plan", body);
       if (res.data?.success && res.data.data) {
         const raw = res.data.data?.requirements || res.data.data || [];
         setResults(raw.map((r: any) => ({
@@ -151,7 +151,7 @@ export default function ViewMrp() {
     if (!selectedItem) return;
     setPrSaving(true);
     try {
-      await api.post("/api/scms/api/PurchaseRequisitions", {
+      await api.post("/api/purchase-requisitions", {
         itemId: selectedItem.itemId,
         quantity: selectedItem.netRequirement,
         notes: `Auto-generated from MRP run (${horizon}d horizon)`,

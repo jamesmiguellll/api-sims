@@ -40,10 +40,10 @@ export default function QAChecklistModal({ open, batchId, onClose, onSubmit }: P
     try {
       // Save QA data
       const qaPayload = { taste, texture, packaging, appearance, notes };
-      await api.put(`/api/scms/api/ProductionBatches/${batchId}/qa`, qaPayload);
+      await api.put(`/api/ProductionBatches/${batchId}/qa`, qaPayload);
 
       // Execute approval or rejection
-      const endpoint = `/api/scms/api/ProductionBatches/${batchId}/${decision}`;
+      const endpoint = `/api/ProductionBatches/${batchId}/${decision}`;
       const decisionPayload = decision === "reject" ? { reason: rejectionReason } : {};
       await api.put(endpoint, decisionPayload);
 

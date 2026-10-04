@@ -1,7 +1,20 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { Search, MoreHorizontal, X } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Ban,
+  Check,
+  Eye,
+  FileText,
+  MoreHorizontal,
+  Play,
+  Plus,
+  RefreshCw,
+  Search,
+  Send,
+  Trash2,
+  X as XIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +39,6 @@ import ProductionBatchDetailsModal from "./ProductionBatchDetailsModal";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import api from "@/lib/api";
 import { toast } from "sonner";
-import api from "@/lib/api";
 
 interface RecipeOption {
   recipeId: number;
@@ -92,10 +104,14 @@ export default function ProductionRequestTab({
   isHeadCook,
   onNavigateToTracking,
 }: ProductionRequestTabProps) {
-  const [requests, setRequests] = useState<ProductionRequest[]>(() =>
-    productionStorage.getRequests()
-  );
-  const products = productionStorage.getProducts();
+  const [requests, setRequests] = useState<ProductionRequest[]>([]);
+  const [drafts, setDrafts] = useState<ProductionRequest[]>([]);
+  const [finishedProducts, setFinishedProducts] = useState<FinishedProductItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [batchMultiplier, setBatchMultiplier] = useState(1);
+  const [assignedCook, setAssignedCook] = useState(isHeadCook ? "Head Cook" : "Elena Reyes");
+  const [detailsBatch, setDetailsBatch] = useState<ProductionRequest | null>(null);
   const [recipes, setRecipes] = useState<RecipeOption[]>([]);
 
   // Active status tab: Admin sees Pending Approval (Request) and Approved tabs
@@ -104,12 +120,8 @@ export default function ProductionRequestTab({
 
   // Create Request Modal state
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [selectedProdId, setSelectedProdId] = useState<number>(
-    products[0]?.productId || 1
-  );
-  const [selectedVariant, setSelectedVariant] = useState<string>(
-    products[0]?.variations[0]?.size || "250g (Tub)"
-  );
+  const [selectedProdId, setSelectedProdId] = useState<number>(0);
+  const [selectedVariant, setSelectedVariant] = useState<string>("Standard");
   const [selectedRecipeId, setSelectedRecipeId] = useState<number>(0);
   const [targetQuantity, setTargetQuantity] = useState<number | "">(100);
   const [targetDate, setTargetDate] = useState(tomorrowLocalDate);
@@ -118,7 +130,7 @@ export default function ProductionRequestTab({
   const [priority, setPriority] = useState<"Normal" | "Urgent">("Normal");
 
   useEffect(() => {
-    api.get("/api/scms/api/Recipes")
+    api.get("/api/recipes")
       .then((response) => {
         const data = response.data?.data?.items || response.data?.data || [];
         setRecipes(Array.isArray(data) ? data.filter((recipe: RecipeOption) => recipe.isActive !== false) : []);
@@ -135,8 +147,6 @@ export default function ProductionRequestTab({
 
   // Summary Report Modal state
   const [viewingSummaryBatch, setViewingSummaryBatch] = useState<ProductionRequest | null>(null);
-  const [rejectingBatch, setRejectingBatch] = useState<ProductionRequest | null>(null);
-  const [rejectReason, setRejectReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
   // 3-dots dropdown state
@@ -195,8 +205,8 @@ export default function ProductionRequestTab({
       setLoading(true);
       const [batchesRes, prodsRes, recipesRes] = await Promise.all([
         api.get("/api/ProductionBatches"),
-        api.get("/api/FinishedProducts"),
-        api.get("/api/Recipes"),
+        api.get("/api/finished-products"),
+        api.get("/api/recipes"),
       ]);
 
       const rawBatches = batchesRes.data || [];
@@ -226,7 +236,7 @@ export default function ProductionRequestTab({
         createdAt: b.productionDate,
       }));
 
-      setBatches(mappedBatches);
+      setRequests(mappedBatches);
 
       const prodsList = prodsRes.data?.data || prodsRes.data || [];
       setFinishedProducts(prodsList);
@@ -247,7 +257,7 @@ export default function ProductionRequestTab({
   }, []);
 
   // Combined requests: API batches + local drafts
-  const allRequests: ProductionRequest[] = isAdmin ? batches : [...drafts, ...batches];
+  const allRequests: ProductionRequest[] = isAdmin ? requests : [...drafts, ...requests];
 
   // Tabs
   const nonAdminTabs = [
@@ -302,7 +312,6 @@ export default function ProductionRequestTab({
   const activeBatchesCount = requests.filter((r) => r.status === "In Progress").length;
 
   // Selected product variations for modal
-  const currentProduct = products.find((p) => p.productId === selectedProdId) || products[0];
   const availableRecipes = useMemo(
     () => recipes.filter((recipe) => recipe.productId === selectedProdId),
     [recipes, selectedProdId]
@@ -319,11 +328,9 @@ export default function ProductionRequestTab({
       toast.error("Please configure at least one finished product in Configuration first.");
       return;
     }
-    const p = products[0];
+    const p = finishedProducts[0];
     setSelectedProdId(p.productId);
-    setSelectedVariant(
-      p.variations[0] ? `${p.variations[0].size} (${p.variations[0].packagingType})` : "Standard"
-    );
+    setSelectedVariant(p.variant || "Standard");
     const firstRecipe = recipes.find((recipe) => recipe.productId === p.productId);
     setSelectedRecipeId(firstRecipe?.recipeId ?? 0);
     setTargetQuantity(100);
@@ -355,7 +362,6 @@ export default function ProductionRequestTab({
     }
   };
 
-  const currentSelectedProduct = finishedProducts.find((p) => p.productId === selectedProdId);
   const currentSelectedRecipe = recipes.find((r) => r.recipeId === selectedRecipeId);
   const estimatedOutput = currentSelectedRecipe
     ? (currentSelectedRecipe.outputQuantity || 100) * (batchMultiplier || 1)
@@ -371,11 +377,6 @@ export default function ProductionRequestTab({
       toast.error("Please select a recipe/BOM");
       return;
     }
-    const selectedRecipe = availableRecipes.find((recipe) => recipe.recipeId === effectiveRecipeId);
-    if (!selectedRecipe) {
-      toast.error("Please select an active recipe for this product");
-      return;
-    }
     if (!targetDate) {
       toast.error("Please choose a schedule date");
       return;
@@ -385,47 +386,6 @@ export default function ProductionRequestTab({
       return;
     }
 
-    const newReq = productionStorage.createRequest({
-      productId: currentProduct.productId,
-      productName: currentProduct.name,
-      variant: selectedVariant,
-      batchSize: Number(targetQuantity),
-      recipeId: selectedRecipe.recipeId,
-      recipeName: selectedRecipe.recipeName,
-      purpose,
-      notes,
-      priority,
-      scheduleDate: targetDate,
-      status,
-      assignedCook: isHeadCook ? "Head Cook" : "Elena",
-    });
-
-    toast.success(
-      status === "Draft"
-        ? `Request saved as Draft (${newReq.batchNumber})`
-        : `Request submitted for Admin Approval (${newReq.batchNumber})`
-    );
-    setIsCreateOpen(false);
-    refreshRequests();
-  };
-
-  const handleApprove = (batchId: number) => {
-    productionStorage.approveRequest(batchId, "Administrator");
-    toast.success("Batch production request approved!");
-    setReviewingBatch(null);
-    setIsApproveConfirmOpen(false);
-    refreshRequests();
-  };
-
-  const handleConfirmReject = () => {
-    if (!reviewingBatch) return;
-    if (!rejectReason.trim()) {
-      setRejectReasonError(true);
-      toast.error("Rejection reason is required");
-      return;
-    }
-
-    // Submit directly to API
     try {
       setSubmitting(true);
       const res = await api.post("/api/ProductionBatches", {
@@ -435,11 +395,14 @@ export default function ProductionRequestTab({
         scheduleDate: new Date(targetDate).toISOString(),
         assignedCook,
         purpose: purpose.trim() || "Batch Replenishment",
+        status: isDraftMode ? "Draft" : "Pending Approval"
       });
 
       const created = res.data;
       toast.success(
-        `Production request submitted for approval! Batch: ${created.batchNumber || "Scheduled"}`
+        isDraftMode
+          ? `Request saved as Draft (${created.batchNumber || "Scheduled"})`
+          : `Production request submitted for approval! Batch: ${created.batchNumber || "Scheduled"}`
       );
       setIsCreateOpen(false);
       fetchData();
@@ -460,9 +423,10 @@ export default function ProductionRequestTab({
         scheduleDate: new Date(draft.scheduleDate || Date.now()).toISOString(),
         assignedCook: draft.assignedCook || "Elena Reyes",
         purpose: draft.purpose || "Batch Replenishment",
+        status: "Pending Approval"
       });
 
-      // Remove from drafts
+      // Remove from drafts (since this is now submitted)
       const remainingDrafts = drafts.filter((d) => d.batchId !== draft.batchId);
       saveDraftsToStorage(remainingDrafts);
 
@@ -489,6 +453,8 @@ export default function ProductionRequestTab({
       setActionLoading(true);
       await api.put(`/api/ProductionBatches/${batchId}/approve`);
       toast.success("Production batch approved!");
+      setReviewingBatch(null);
+      setIsApproveConfirmOpen(false);
       fetchData();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Failed to approve batch");
@@ -497,27 +463,23 @@ export default function ProductionRequestTab({
     }
   };
 
-  const handleOpenReject = (batch: ProductionRequest) => {
-    setRejectingBatch(batch);
-    setRejectReason("");
-    setRejectReasonError(false);
-    refreshRequests();
-  };
-
   const handleConfirmReject = async () => {
-    if (!rejectingBatch) return;
+    if (!reviewingBatch) return;
     if (!rejectReason.trim()) {
-      toast.error("Please enter a rejection reason");
+      setRejectReasonError(true);
+      toast.error("Rejection reason is required");
       return;
     }
 
     try {
       setActionLoading(true);
-      await api.put(`/api/ProductionBatches/${rejectingBatch.batchId}/reject`, {
+      await api.put(`/api/ProductionBatches/${reviewingBatch.batchId}/reject`, {
         reason: rejectReason.trim(),
       });
-      toast.success(`Batch ${rejectingBatch.batchNumber} has been rejected`);
-      setRejectingBatch(null);
+      toast.success(`Batch ${reviewingBatch.batchNumber} has been rejected`);
+      setReviewingBatch(null);
+      setIsRejectMode(false);
+      setRejectReason("");
       fetchData();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Failed to reject batch");
@@ -643,7 +605,16 @@ export default function ProductionRequestTab({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filteredRequests.map((req) => (
+                  {filteredRequests.map((req, rowIdx) => {
+                    const isOpen = openDropdownId === req.batchId;
+                    const isPending = req.status === "Pending Approval";
+                    const isDraft = req.status === "Draft";
+                    const isApproved = req.status === "Approved";
+                    const isInProgress = req.status === "In Progress";
+                    const isCompleted = req.status === "Completed";
+                    const isPassedQa = req.status === "Passed QA";
+
+                    return (
                     <tr key={req.batchId} className="hover:bg-muted/30 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-foreground">
                         {req.batchNumber}
@@ -664,17 +635,13 @@ export default function ProductionRequestTab({
                         <StatusBadge status={req.status} />
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {/* Admin: 3-dots action for review / accept / reject */}
-                          {isAdmin && req.status === "Pending Approval" && (
+                        <div className="relative flex items-center justify-end gap-1.5">
                             <Button
+                              type="button"
                               variant="outline"
                               size="sm"
                               onClick={() => {
-                                setReviewingBatch(req);
-                                setIsRejectMode(false);
-                                setRejectReason("");
-                                setRejectReasonError(false);
+                                setOpenDropdownId(isOpen ? null : req.batchId);
                               }}
                               className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                                 isOpen
@@ -684,7 +651,7 @@ export default function ProductionRequestTab({
                               aria-label="Actions menu"
                             >
                               <MoreHorizontal className="w-4 h-4 text-foreground" />
-                            </button>
+                            </Button>
 
                             {isOpen && (
                               <div
@@ -728,7 +695,10 @@ export default function ProductionRequestTab({
                                       type="button"
                                       onClick={() => {
                                         setOpenDropdownId(null);
-                                        handleOpenReject(req);
+                                        setReviewingBatch(req);
+                                        setIsRejectMode(true);
+                                        setRejectReason("");
+                                        setRejectReasonError(false);
                                       }}
                                       className="flex w-full items-center gap-2.5 px-3 py-2 text-xs font-medium transition-colors hover:bg-muted text-destructive text-left cursor-pointer"
                                     >
@@ -877,12 +847,8 @@ export default function ProductionRequestTab({
                 onValueChange={(val) => {
                   const pid = parseInt(val, 10);
                   setSelectedProdId(pid);
-                  const p = products.find((prod) => prod.productId === pid);
-                  if (p && p.variations[0]) {
-                    setSelectedVariant(
-                      `${p.variations[0].size} (${p.variations[0].packagingType})`
-                    );
-                  }
+                  const p = finishedProducts.find((prod) => prod.productId === pid);
+                  setSelectedVariant(p?.variant || "Standard");
                   const firstRecipe = recipes.find((recipe) => recipe.productId === pid);
                   setSelectedRecipeId(firstRecipe?.recipeId ?? 0);
                 }}
@@ -1095,19 +1061,28 @@ export default function ProductionRequestTab({
 
       {/* ── Admin Rejection Reason Modal ── */}
       <Dialog
-        open={Boolean(rejectingBatch)}
-        onOpenChange={(open) => !open && setRejectingBatch(null)}
+        open={Boolean(reviewingBatch)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setReviewingBatch(null);
+            setIsRejectMode(false);
+            setRejectReason("");
+            setRejectReasonError(false);
+          }
+        }}
       >
         <DialogContent className="sm:max-w-md bg-card border-border p-6 shadow-2xl">
           <DialogHeader className="border-b border-border pb-3">
-            <DialogTitle className="text-base font-bold text-destructive flex items-center gap-2">
-              <XIcon size={16} /> Reject Production Request
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              Review Production Request
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Please specify the reason for rejecting batch {rejectingBatch?.batchNumber}
+              Review batch {reviewingBatch?.batchNumber} before approving or rejecting it.
             </DialogDescription>
           </DialogHeader>
 
+          {reviewingBatch && (
+            <>
               <div className="space-y-4 pt-2">
                 {/* Request Details Review */}
                 <div className="space-y-2 text-xs border border-border rounded-lg p-3 bg-muted/10">
@@ -1249,6 +1224,12 @@ export default function ProductionRequestTab({
           </div>
         </DialogContent>
       </Dialog>
+
+      <ProductionBatchDetailsModal
+        open={Boolean(detailsBatch)}
+        onClose={() => setDetailsBatch(null)}
+        batch={detailsBatch}
+      />
 
       {/* ── View Summary Report Modal ── */}
       {viewingSummaryBatch && viewingSummaryBatch.summaryReport && (

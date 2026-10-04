@@ -51,7 +51,7 @@ export default function DeliveryDetailsModal({
     setLoading(true);
     setError(null);
     api
-      .get(`/api/Deliveries/${delivery.deliveryId}`)
+      .get(`/api/deliveries/${delivery.deliveryId}`)
       .then(({ data }) => {
         setDetail(data?.data || null);
       })

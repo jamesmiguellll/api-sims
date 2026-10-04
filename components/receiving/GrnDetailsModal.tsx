@@ -29,7 +29,7 @@ export default function GrnDetailsModal({ grn, open, onClose, onUpdated, onPoste
     setLoading(true);
     setError(null);
     try {
-      const res = await api.post(`/api/GoodsReceipts/${grn.grnId}/post`);
+      const res = await api.post(`/api/goods-receipts/${grn.grnId}/post`);
       if (res.data?.success) {
         onUpdated();
         onClose();
@@ -48,7 +48,7 @@ export default function GrnDetailsModal({ grn, open, onClose, onUpdated, onPoste
     setLoading(true);
     setError(null);
     try {
-      const res = await api.post(`/api/GoodsReceipts/${grn.grnId}/cancel`);
+      const res = await api.post(`/api/goods-receipts/${grn.grnId}/cancel`);
       if (res.data?.success) {
         setCancelModalOpen(false);
         onUpdated();

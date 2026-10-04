@@ -2,10 +2,17 @@
 
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, AlertCircle } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
+  RotateCcw,
+  ShoppingBag,
+  XCircle,
+} from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
-export type POActionType = "approve" | "reject" | "return" | "cancel";
+export type POActionType = "approve" | "reject" | "return" | "cancel" | "order";
 
 interface POActionModalProps {
   actionType: POActionType;
@@ -80,7 +87,9 @@ const ACTION_CONFIG: Record<
 };
 
 export function POActionModal({ actionType, poNumber, onClose, onConfirm }: POActionModalProps) {
-  const [notes, setNotes] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -99,6 +108,8 @@ export function POActionModal({ actionType, poNumber, onClose, onConfirm }: POAc
         return "Return for Revision";
       case "cancel":
         return "Cancel Purchase Order";
+      case "order":
+        return "Mark as Ordered";
     }
   };
 
@@ -112,6 +123,8 @@ export function POActionModal({ actionType, poNumber, onClose, onConfirm }: POAc
         return `Please provide instructions or reasons for returning purchase order ${poNumber}. The requester will be able to revise and re-submit it.`;
       case "cancel":
         return `Are you sure you want to cancel purchase order ${poNumber}? This action cannot be undone.`;
+      case "order":
+        return `Mark purchase order ${poNumber} as ordered and send it to the supplier?`;
     }
   };
 

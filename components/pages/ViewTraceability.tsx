@@ -86,8 +86,8 @@ export default function ViewTraceability() {
     setTraceResult(null);
     try {
       const endpoint = traceType === "forward"
-        ? `/api/scms/api/Traceability/forward?lotCode=${encodeURIComponent(query)}`
-        : `/api/scms/api/Traceability/backward?batchId=${encodeURIComponent(query)}`;
+        ? `/api/traceability/forward?lotCode=${encodeURIComponent(query)}`
+        : `/api/traceability/backward?batchId=${encodeURIComponent(query)}`;
       const res = await api.get(endpoint);
       if (res.data?.success && res.data.data) {
         // Map flat API data to tree structure
@@ -164,7 +164,7 @@ export default function ViewTraceability() {
     if (!query.trim()) return;
     setRecallLoading(true);
     try {
-      const res = await api.get(`/api/scms/api/Traceability/recall-simulation?lotCode=${encodeURIComponent(query)}`);
+      const res = await api.get(`/api/traceability/recall-simulation?lotCode=${encodeURIComponent(query)}`);
       if (res.data?.success && res.data.data) {
         const d = res.data.data;
         setRecallData({
@@ -188,7 +188,7 @@ export default function ViewTraceability() {
   const handleApplyRecallHold = async () => {
     if (!query.trim()) return;
     try {
-      await api.post("/api/scms/api/Traceability/recall", { lotCode: query, applyHold });
+      await api.post("/api/traceability/recall", { lotCode: query, applyHold });
       setShowRecall(false);
     } catch (e) {
       console.error(e);

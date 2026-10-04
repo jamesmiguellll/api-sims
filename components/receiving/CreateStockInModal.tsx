@@ -52,7 +52,7 @@ export default function CreateStockInModal({ open, onClose, onSuccess }: Props) 
     setLoading(true);
 
     api
-      .get("/api/GoodsReceipts")
+      .get("/api/goods-receipts")
       .then(({ data }) => {
         const list: GRN[] = Array.isArray(data?.data) ? data.data : [];
         const eligible = list.filter(
@@ -77,7 +77,7 @@ export default function CreateStockInModal({ open, onClose, onSuccess }: Props) 
 
     try {
       const [grnDetailRes, invRes] = await Promise.all([
-        api.get(`/api/GoodsReceipts/${grnId}`),
+        api.get(`/api/goods-receipts/${grnId}`),
         api.get("/api/Inventory?pageSize=1000").catch(() => ({ data: { data: [] } })),
       ]);
 

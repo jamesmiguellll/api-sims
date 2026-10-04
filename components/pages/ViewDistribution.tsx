@@ -42,9 +42,9 @@ export default function DistributionPage() {
     try {
       const statusParam = statusFilter === "All" ? "" : statusFilter;
       const [trRes, locRes, stRes] = await Promise.allSettled([
-        api.get(`/api/scms/api/StockTransfers?page=${page}&pageSize=10&status=${statusParam}&search=${search}`),
-        api.get("/api/scms/api/Locations?pageSize=100"),
-        api.get("/api/scms/api/StockTransfers/dashboard"),
+        api.get(`/api/stock-transfers?page=${page}&pageSize=10&status=${statusParam}&search=${search}`),
+        api.get("/api/locations?pageSize=100"),
+        api.get("/api/stock-transfers/dashboard"),
       ]);
 
       if (trRes.status === "fulfilled" && trRes.value.data?.success) {
@@ -83,15 +83,15 @@ export default function DistributionPage() {
 
   const updateStatus = async (t: TransferItem, status: string) => {
     try {
-      await api.put(`/api/scms/api/StockTransfers/${t.transferId}/status`, { status });
+      await api.put(`/api/stock-transfers/${t.transferId}/status`, { status });
       fetchData();
     } catch { alert(`Failed to update transfer status.`); }
   };
 
   const handleSaveLocation = async (data: any) => {
     try {
-      if (editingLocation) await api.put(`/api/scms/api/Locations/${editingLocation.locationId}`, data);
-      else await api.post("/api/scms/api/Locations", data);
+      if (editingLocation) await api.put(`/api/locations/${editingLocation.locationId}`, data);
+      else await api.post("/api/locations", data);
       setShowLocationModal(false); setEditingLocation(null); fetchData();
     } catch { alert("Failed to save location."); }
   };

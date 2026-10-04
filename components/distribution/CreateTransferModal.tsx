@@ -38,7 +38,7 @@ export default function CreateTransferModal({
 
       const load = async () => {
         try {
-          const res = await api.get("/api/scms/api/FinishedProducts");
+          const res = await api.get("/api/finished-products");
           if (res.data?.success) setProducts(res.data.data.items || res.data.data || []);
         } catch (e) { console.error(e); }
       };
@@ -65,7 +65,7 @@ export default function CreateTransferModal({
         status: "Pending",
       };
 
-      await api.post("/api/scms/api/StockTransfers", payload);
+      await api.post("/api/stock-transfers", payload);
       onCreated();
       onClose();
     } catch {

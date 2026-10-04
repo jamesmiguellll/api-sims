@@ -49,12 +49,10 @@ export default function SupplyDetailsModal({
       setLoading(true);
       try {
         const [suppRes, poRes] = await Promise.allSettled([
-          api.get(`/api/scms/api/SupplierItems/by-item/${item.itemId}`).catch(() =>
+          api.get(`/api/supplier-items/by-item/${item.itemId}`).catch(() =>
             api.get(`/api/SupplierItems/by-item/${item.itemId}`)
           ),
-          api.get(`/api/scms/api/PurchaseOrders?pageSize=100`).catch(() =>
-            api.get(`/api/PurchaseOrders?pageSize=100`)
-          ),
+          api.get(`/api/purchase-orders?pageSize=100`),
         ]);
 
         if (suppRes.status === "fulfilled" && suppRes.value?.data?.success) {

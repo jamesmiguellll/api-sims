@@ -51,7 +51,7 @@ export default function ViewReports({ initialTab }: { initialTab: string }) {
         if (endDate) params.append("endDate", endDate);
       }
       const qs = params.toString();
-      const endpoint = `/api/scms/api/Reports/${initialTab}${qs ? `?${qs}` : ""}`;
+      const endpoint = `/api/reports/${initialTab}${qs ? `?${qs}` : ""}`;
       const response = await api.get(endpoint);
       const json = response.data;
       if (json.success) setData(json.data);

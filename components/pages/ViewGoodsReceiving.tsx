@@ -25,8 +25,8 @@ export default function ViewGoodsReceiving() {
   const loadTabCounts = async () => {
     try {
       const [grnRes, delRes, discRes, stockInRes, rtvRes, lrRes] = await Promise.allSettled([
-        api.get("/api/GoodsReceipts"),
-        api.get("/api/Deliveries"),
+        api.get("/api/goods-receipts"),
+        api.get("/api/deliveries"),
         api.get("/api/Discrepancies"),
         api.get("/api/StockIns"),
         api.get("/api/ReturnToVendors"),

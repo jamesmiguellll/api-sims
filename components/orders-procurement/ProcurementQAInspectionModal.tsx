@@ -47,7 +47,7 @@ export default function ProcurementQAInspectionModal({
     try {
       setIsSaving(true);
       const targetStatus = result === "Passed" ? "Completed" : "Rejected";
-      const res = await api.put(`/api/scms/api/PurchaseOrders/${order.poId}/status`, {
+      const res = await api.put(`/api/purchase-orders/${order.poId}/status`, {
         status: targetStatus,
         qaNotes: comment,
         qaStatus: result,
@@ -58,7 +58,7 @@ export default function ProcurementQAInspectionModal({
         if (pictureFile) {
           const formData = new FormData();
           formData.append("file", pictureFile);
-          await api.post(`/api/scms/api/PurchaseOrders/${order.poId}/upload-receipt`, formData);
+          await api.post(`/api/purchase-orders/${order.poId}/upload-receipt`, formData);
         }
         onComplete();
         onClose();

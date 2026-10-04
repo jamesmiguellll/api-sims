@@ -25,8 +25,8 @@ export default function ViewLots() {
     try {
       const statusFilter = activeTab === "all" ? "" : activeTab;
       const url = statusFilter
-        ? `/api/scms/api/Lots?status=${statusFilter}&page=${page}&pageSize=10`
-        : `/api/scms/api/Lots?page=${page}&pageSize=10`;
+        ? `/api/inventory/lots?status=${statusFilter}&page=${page}&pageSize=10`
+        : `/api/inventory/lots?page=${page}&pageSize=10`;
       const res = await api.get(url);
       if (res.data.success) {
         setLots(res.data.data.items || res.data.data || []);
@@ -48,7 +48,7 @@ export default function ViewLots() {
         const counts: Record<string, number> = { all: 0 };
         await Promise.all(
           statuses.map(async (status) => {
-            const res = await api.get(`/api/scms/api/Lots?status=${status}&page=1&pageSize=1`);
+            const res = await api.get(`/api/inventory/lots?status=${status}&page=1&pageSize=1`);
             if (res.data?.success) {
               counts[status] = res.data.data.totalCount || res.data.data.items?.length || 0;
             }

@@ -100,7 +100,7 @@ export default function CreateOrderModal({
     try {
       let res;
       try {
-        res = await api.get(`/api/scms/api/SupplierItems/by-item/${newItemId}`);
+        res = await api.get(`/api/supplier-items/by-item/${newItemId}`);
       } catch {
         res = await api.get(`/api/SupplierItems/by-item/${newItemId}`);
       }

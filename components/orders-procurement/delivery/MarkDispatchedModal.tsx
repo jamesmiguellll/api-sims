@@ -103,7 +103,7 @@ export function MarkDispatchedModal({
       };
 
       const res = await api.put(
-        `/api/scms/api/deliveries/${delivery.deliveryId}/dispatch`,
+        `/api/deliveries/${delivery.deliveryId}/dispatch`,
         payload
       );
 

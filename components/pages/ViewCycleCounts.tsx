@@ -85,8 +85,8 @@ export default function ViewCycleCounts() {
     setLoading(true);
     try {
       const [ccRes, locRes] = await Promise.allSettled([
-        api.get("/api/scms/api/CycleCounts?page=1&pageSize=100"),
-        api.get("/api/scms/api/Locations?pageSize=100"),
+        api.get("/api/cycle-counts?page=1&pageSize=100"),
+        api.get("/api/locations?pageSize=100"),
       ]);
       if (ccRes.status === "fulfilled" && ccRes.value.data?.success) {
         const raw = ccRes.value.data.data?.items || ccRes.value.data.data || [];
@@ -120,7 +120,7 @@ export default function ViewCycleCounts() {
     setShowDetailModal(true);
     setLoadingItems(true);
     try {
-      const res = await api.get(`/api/scms/api/CycleCounts/${cc.cycleCountId}/items`);
+      const res = await api.get(`/api/cycle-counts/${cc.cycleCountId}/items`);
       if (res.data?.success) {
         const raw = res.data.data || [];
         setCountItems(raw.map((i: any) => ({
@@ -146,7 +146,7 @@ export default function ViewCycleCounts() {
     if (!newCount.locationId) return;
     setSaving(true);
     try {
-      await api.post("/api/scms/api/CycleCounts", {
+      await api.post("/api/cycle-counts", {
         locationId: parseInt(newCount.locationId),
         countedBy: newCount.countedBy || "System",
       });
@@ -163,7 +163,7 @@ export default function ViewCycleCounts() {
   const handleReconcile = async () => {
     if (!selectedCount) return;
     try {
-      await api.post(`/api/scms/api/CycleCounts/${selectedCount.cycleCountId}/reconcile`);
+      await api.post(`/api/cycle-counts/${selectedCount.cycleCountId}/reconcile`);
       setShowReconcileDialog(false);
       setShowDetailModal(false);
       fetchCounts();

@@ -126,7 +126,7 @@ export default function ConfigurationTab() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/api/FinishedProducts");
+      const res = await api.get("/api/finished-products");
       const list = res.data?.data || res.data || [];
       setProducts(list);
     } catch (err: any) {
@@ -225,7 +225,7 @@ export default function ConfigurationTab() {
       // Create each variation via POST /api/FinishedProducts
       for (const v of variationsList) {
         const variantLabel = `${v.size} ${v.packagingType}`.trim();
-        const res = await api.post("/api/FinishedProducts", {
+        const res = await api.post("/api/finished-products", {
           productName: productName.trim(),
           variant: variantLabel,
           sellingPrice: v.price,
@@ -241,7 +241,7 @@ export default function ConfigurationTab() {
           const formData = new FormData();
           formData.append("file", productPhotoFile);
           try {
-            await api.post(`/api/FinishedProducts/${pid}/image`, formData, {
+            await api.post(`/api/finished-products/${pid}/image`, formData, {
               headers: { "Content-Type": "multipart/form-data" },
             });
           } catch {
@@ -294,7 +294,7 @@ export default function ConfigurationTab() {
         quickVarSku.trim() ||
         generateSku(targetProductName, quickVarType, quickVarSize);
 
-      await api.post("/api/FinishedProducts", {
+      await api.post("/api/finished-products", {
         productName: targetProductName.trim(),
         variant: variantLabel,
         sellingPrice: Number(quickVarPrice) || 0,
@@ -327,7 +327,7 @@ export default function ConfigurationTab() {
 
     try {
       setSubmitting(true);
-      await api.put(`/api/FinishedProducts/${editingItem.productId}`, {
+      await api.put(`/api/finished-products/${editingItem.productId}`, {
         productName: editProductName.trim(),
         variant: editVariantStr.trim(),
         sellingPrice: Number(editPrice) || 0,
@@ -349,7 +349,7 @@ export default function ConfigurationTab() {
     if (!confirm(`Are you sure you want to remove variant "${variantLabel}"?`)) return;
 
     try {
-      await api.delete(`/api/FinishedProducts/${productId}`);
+      await api.delete(`/api/finished-products/${productId}`);
       toast.success("Variant removed successfully");
       fetchProducts();
     } catch (err: any) {
@@ -380,7 +380,7 @@ export default function ConfigurationTab() {
 
     try {
       toast.loading("Uploading photo...", { id: "upload-photo" });
-      await api.post(`/api/FinishedProducts/${activeUploadProductId}/image`, formData, {
+      await api.post(`/api/finished-products/${activeUploadProductId}/image`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       toast.success("Product photo updated successfully", { id: "upload-photo" });

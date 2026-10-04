@@ -58,12 +58,10 @@ export default function SupplierDetailsModal({
       setLoading(true);
       try {
         const [catRes, poRes] = await Promise.allSettled([
-          api.get(`/api/scms/api/SupplierItems/by-supplier/${supplier.supplierId}`).catch(() =>
+          api.get(`/api/supplier-items/by-supplier/${supplier.supplierId}`).catch(() =>
             api.get(`/api/SupplierItems/by-supplier/${supplier.supplierId}`)
           ),
-          api.get(`/api/scms/api/PurchaseOrders?pageSize=50`).catch(() =>
-            api.get(`/api/PurchaseOrders?pageSize=50`)
-          ),
+          api.get(`/api/purchase-orders?pageSize=50`),
         ]);
 
         if (catRes.status === "fulfilled" && catRes.value?.data?.success) {

@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertCircle, FileText } from "lucide-react";
+import { AlertCircle, Check, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ModalWrapper from "@/components/resources-suppliers/ModalWrapper";
 import { Delivery } from "../types";
 import CreateGrnModal from "@/components/receiving/CreateGrnModal";
+import { StatusBadge } from "@/components/shared/StatusBadge";
 
 interface DeliveryDetailsModalProps {
   delivery: Delivery | null;

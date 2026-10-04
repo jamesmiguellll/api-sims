@@ -1,0 +1,1132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model ApprovalRequests {
+  ApprovalRequestId Int       @id(map: "PK_ApprovalRequests") @default(autoincrement())
+  EntityType        String
+  EntityId          Int
+  DocumentNumber    String
+  Amount            Decimal   @db.Decimal(18, 4)
+  Status            String
+  Reason            String
+  RequestedBy       String
+  RequestedAt       DateTime  @db.Timestamptz(6)
+  ApproverId        String?
+  ApproverName      String?
+  ActionAt          DateTime? @db.Timestamptz(6)
+  Comments          String?
+
+  @@index([EntityType, EntityId], map: "IX_ApprovalRequests_Entity")
+  @@index([RequestedAt], map: "IX_ApprovalRequests_RequestedAt")
+  @@index([Status], map: "IX_ApprovalRequests_Status")
+}
+
+model AuditLogs {
+  LogId      Int      @id(map: "PK_AuditLogs") @default(autoincrement())
+  EntityName String
+  EntityId   String
+  FieldName  String
+  OldValue   String
+  NewValue   String
+  Action     String
+  Timestamp  DateTime @db.Timestamptz(6)
+  UserId     String
+  UserName   String   @default("")
+}
+
+model BatchConsumptions {
+  BatchConsumptionId Int               @id(map: "PK_BatchConsumptions") @default(autoincrement())
+  BatchId            Int
+  ItemId             Int
+  RequiredQuantity   Decimal           @db.Decimal(18, 3)
+  SourceSupplierId   Int?
+  LotId              Int?
+  QuantityUsed       Decimal           @default(0.0) @db.Decimal(18, 3)
+  UnitCost           Decimal           @default(0.0) @db.Decimal(18, 4)
+  UomId              Int?
+  InventoryLots      InventoryLots?    @relation(fields: [LotId], references: [LotId], onDelete: Restrict, onUpdate: NoAction, map: "FK_BatchConsumptions_InventoryLots_LotId")
+  Items              Items             @relation(fields: [ItemId], references: [ItemId], onDelete: Cascade, onUpdate: NoAction, map: "FK_BatchConsumptions_Items_ItemId")
+  ProductionBatches  ProductionBatches @relation(fields: [BatchId], references: [BatchId], onDelete: Cascade, onUpdate: NoAction, map: "FK_BatchConsumptions_ProductionBatches_BatchId")
+  Suppliers          Suppliers?        @relation(fields: [SourceSupplierId], references: [SupplierId], onDelete: Cascade, onUpdate: NoAction, map: "FK_BatchConsumptions_Suppliers_SourceSupplierId")
+  UnitOfMeasures     UnitOfMeasures?   @relation(fields: [UomId], references: [UomId], onDelete: Restrict, onUpdate: NoAction, map: "FK_BatchConsumptions_UnitOfMeasures_UomId")
+
+  @@index([BatchId], map: "IX_BatchConsumptions_BatchId")
+  @@index([ItemId], map: "IX_BatchConsumptions_ItemId")
+  @@index([LotId], map: "IX_BatchConsumptions_LotId")
+  @@index([SourceSupplierId], map: "IX_BatchConsumptions_SourceSupplierId")
+  @@index([UomId], map: "IX_BatchConsumptions_UomId")
+}
+
+model BranchRequestItems {
+  BranchRequestItemId Int              @id(map: "PK_BranchRequestItems") @default(autoincrement())
+  BranchRequestId     Int
+  ProductId           Int
+  RequestedQuantity   Decimal          @db.Decimal(18, 3)
+  ApprovedQuantity    Decimal          @db.Decimal(18, 3)
+  DispatchedQuantity  Decimal          @db.Decimal(18, 3)
+  ReceivedQuantity    Decimal          @db.Decimal(18, 3)
+  Notes               String?
+  BranchRequests      BranchRequests   @relation(fields: [BranchRequestId], references: [BranchRequestId], onDelete: Cascade, onUpdate: NoAction, map: "FK_BranchRequestItems_BranchRequests_BranchRequestId")
+  FinishedProducts    FinishedProducts @relation(fields: [ProductId], references: [ProductId], onUpdate: NoAction, map: "FK_BranchRequestItems_FinishedProducts_ProductId")
+
+  @@index([BranchRequestId], map: "IX_BranchRequestItems_BranchRequestId")
+  @@index([ProductId], map: "IX_BranchRequestItems_ProductId")
+}
+
+model BranchRequests {
+  BranchRequestId    Int                  @id(map: "PK_BranchRequests") @default(autoincrement())
+  RequestNumber      String               @unique(map: "IX_BranchRequests_RequestNumber")
+  BranchId           Int
+  RequestDate        DateTime             @db.Timestamptz(6)
+  RequiredDate       DateTime?            @db.Timestamptz(6)
+  Status             String
+  RequestedBy        String
+  ApprovedBy         String?
+  Notes              String?
+  BranchRequestItems BranchRequestItems[]
+  Locations          Locations            @relation(fields: [BranchId], references: [LocationId], onUpdate: NoAction, map: "FK_BranchRequests_Locations_BranchId")
+  StockTransfers     StockTransfers[]
+
+  @@index([BranchId], map: "IX_BranchRequests_BranchId")
+}
+
+model BranchReturnItems {
+  BranchReturnItemId Int              @id(map: "PK_BranchReturnItems") @default(autoincrement())
+  BranchReturnId     Int
+  ProductId          Int
+  LotId              Int?
+  ReturnedQuantity   Decimal          @db.Decimal(18, 3)
+  DefectCondition    String?
+  Notes              String?
+  BranchReturns      BranchReturns    @relation(fields: [BranchReturnId], references: [BranchReturnId], onDelete: Cascade, onUpdate: NoAction, map: "FK_BranchReturnItems_BranchReturns_BranchReturnId")
+  FinishedProducts   FinishedProducts @relation(fields: [ProductId], references: [ProductId], onUpdate: NoAction, map: "FK_BranchReturnItems_FinishedProducts_ProductId")
+  InventoryLots      InventoryLots?   @relation(fields: [LotId], references: [LotId], onDelete: Restrict, onUpdate: NoAction, map: "FK_BranchReturnItems_InventoryLots_LotId")
+
+  @@index([BranchReturnId], map: "IX_BranchReturnItems_BranchReturnId")
+  @@index([LotId], map: "IX_BranchReturnItems_LotId")
+  @@index([ProductId], map: "IX_BranchReturnItems_ProductId")
+}
+
+model BranchReturns {
+  BranchReturnId    Int                 @id(map: "PK_BranchReturns") @default(autoincrement())
+  ReturnNumber      String              @unique(map: "IX_BranchReturns_ReturnNumber")
+  BranchId          Int
+  ReturnDate        DateTime            @db.Timestamptz(6)
+  Reason            String
+  Status            String
+  ReturnedBy        String
+  AuthorizedBy      String?
+  Notes             String?
+  BranchReturnItems BranchReturnItems[]
+  Locations         Locations           @relation(fields: [BranchId], references: [LocationId], onUpdate: NoAction, map: "FK_BranchReturns_Locations_BranchId")
+
+  @@index([BranchId], map: "IX_BranchReturns_BranchId")
+}
+
+model Categories {
+  CategoryId   Int     @id(map: "PK_Categories") @default(autoincrement())
+  CategoryName String
+  Description  String
+  Items        Items[]
+}
+
+model CycleCountItems {
+  CycleCountItemId Int            @id(map: "PK_CycleCountItems") @default(autoincrement())
+  CycleCountId     Int
+  ItemId           Int
+  LotId            Int?
+  SystemQuantity   Decimal        @db.Decimal(18, 3)
+  CountedQuantity  Decimal        @db.Decimal(18, 3)
+  UnitCost         Decimal        @db.Decimal(18, 4)
+  Reason           String?
+  Notes            String?
+  CycleCounts      CycleCounts    @relation(fields: [CycleCountId], references: [CycleCountId], onDelete: Cascade, onUpdate: NoAction, map: "FK_CycleCountItems_CycleCounts_CycleCountId")
+  InventoryLots    InventoryLots? @relation(fields: [LotId], references: [LotId], onDelete: Restrict, onUpdate: NoAction, map: "FK_CycleCountItems_InventoryLots_LotId")
+  Items            Items          @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_CycleCountItems_Items_ItemId")
+
+  @@index([CycleCountId], map: "IX_CycleCountItems_CycleCountId")
+  @@index([ItemId], map: "IX_CycleCountItems_ItemId")
+  @@index([LotId], map: "IX_CycleCountItems_LotId")
+}
+
+model CycleCounts {
+  CycleCountId       Int               @id(map: "PK_CycleCounts") @default(autoincrement())
+  CountNumber        String            @unique(map: "IX_CycleCounts_CountNumber")
+  LocationId         Int
+  CountDate          DateTime          @db.Timestamptz(6)
+  ReconciledDate     DateTime?         @db.Timestamptz(6)
+  Status             String
+  CountedBy          String
+  ReconciledBy       String?
+  Notes              String?
+  TotalSystemValue   Decimal           @db.Decimal(18, 4)
+  TotalCountedValue  Decimal           @db.Decimal(18, 4)
+  TotalVarianceValue Decimal           @db.Decimal(18, 4)
+  CycleCountItems    CycleCountItems[]
+  Locations          Locations         @relation(fields: [LocationId], references: [LocationId], onUpdate: NoAction, map: "FK_CycleCounts_Locations_LocationId")
+
+  @@index([LocationId], map: "IX_CycleCounts_LocationId")
+}
+
+model Deliveries {
+  DeliveryId          Int             @id(map: "PK_Deliveries") @default(autoincrement())
+  DeliveryNumber      String          @unique(map: "IX_Deliveries_DeliveryNumber")
+  PoId                Int
+  SupplierId          Int
+  ReceivingLocationId Int
+  Status              String
+  ScheduledDate       DateTime        @db.Timestamptz(6)
+  ExpectedArrivalDate DateTime?       @db.Timestamptz(6)
+  DispatchedDate      DateTime?       @db.Timestamptz(6)
+  ActualArrivalDate   DateTime?       @db.Timestamptz(6)
+  TrackingNumber      String?
+  Carrier             String?
+  DriverName          String?
+  VehiclePlateNumber  String?
+  DeliveryNoteNumber  String?
+  ArrivalCondition    String?
+  ArrivalNotes        String?
+  Notes               String?
+  AttachmentUrl       String?
+  CreatedBy           String
+  DispatchedBy        String?
+  ReceivedBy          String?
+  CreatedAt           DateTime        @db.Timestamptz(6)
+  ArrivalAttachment   String?
+  DispatchAttachment  String?
+  PaymentType         String?
+  ScheduledAttachment String?
+  Locations           Locations       @relation(fields: [ReceivingLocationId], references: [LocationId], onUpdate: NoAction, map: "FK_Deliveries_Locations_ReceivingLocationId")
+  PurchaseOrders      PurchaseOrders  @relation(fields: [PoId], references: [PoId], onUpdate: NoAction, map: "FK_Deliveries_PurchaseOrders_PoId")
+  Suppliers           Suppliers       @relation(fields: [SupplierId], references: [SupplierId], onUpdate: NoAction, map: "FK_Deliveries_Suppliers_SupplierId")
+  DeliveryItems       DeliveryItems[]
+  Discrepancies       Discrepancies[]
+  GoodsReceipts       GoodsReceipts[]
+
+  @@index([PoId], map: "IX_Deliveries_PoId")
+  @@index([ReceivingLocationId], map: "IX_Deliveries_ReceivingLocationId")
+  @@index([Status], map: "IX_Deliveries_Status")
+  @@index([SupplierId], map: "IX_Deliveries_SupplierId")
+}
+
+model DeliveryItems {
+  DeliveryItemId     Int                 @id(map: "PK_DeliveryItems") @default(autoincrement())
+  DeliveryId         Int
+  PoItemId           Int
+  ItemId             Int
+  DeclaredQuantity   Decimal             @db.Decimal(18, 3)
+  PurchaseUomId      Int
+  Deliveries         Deliveries          @relation(fields: [DeliveryId], references: [DeliveryId], onDelete: Cascade, onUpdate: NoAction, map: "FK_DeliveryItems_Deliveries_DeliveryId")
+  Items              Items               @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_DeliveryItems_Items_ItemId")
+  PurchaseOrderItems PurchaseOrderItems  @relation(fields: [PoItemId], references: [PoItemId], onUpdate: NoAction, map: "FK_DeliveryItems_PurchaseOrderItems_PoItemId")
+  UnitOfMeasures     UnitOfMeasures      @relation(fields: [PurchaseUomId], references: [UomId], onUpdate: NoAction, map: "FK_DeliveryItems_UnitOfMeasures_PurchaseUomId")
+  GoodsReceiptItems  GoodsReceiptItems[]
+
+  @@index([DeliveryId], map: "IX_DeliveryItems_DeliveryId")
+  @@index([ItemId], map: "IX_DeliveryItems_ItemId")
+  @@index([PoItemId], map: "IX_DeliveryItems_PoItemId")
+  @@index([PurchaseUomId], map: "IX_DeliveryItems_PurchaseUomId")
+}
+
+model Discrepancies {
+  DiscrepancyId         Int                    @id(map: "PK_Discrepancies") @default(autoincrement())
+  DiscrepancyNumber     String                 @unique(map: "IX_Discrepancies_DiscrepancyNumber")
+  DiscrepancyType       String
+  GrnId                 Int
+  GrnNumber             String
+  PoId                  Int
+  PoNumber              String
+  DeliveryId            Int?
+  DeliveryNumber        String?
+  ItemId                Int
+  OrderedQuantity       Decimal                @db.Decimal(18, 3)
+  PreviouslyReceivedQty Decimal                @db.Decimal(18, 3)
+  CurrentReceivedQty    Decimal                @db.Decimal(18, 3)
+  DiscrepancyQuantity   Decimal                @db.Decimal(18, 3)
+  Status                String
+  ResolutionType        String?
+  ResolutionNotes       String?
+  LossReportId          Int?                   @unique(map: "IX_Discrepancies_LossReportId")
+  RtvId                 Int?
+  ResolvedBy            String?
+  ResolvedAt            DateTime?              @db.Timestamptz(6)
+  CreatedAt             DateTime               @db.Timestamptz(6)
+  NcrId                 Int?
+  Deliveries            Deliveries?            @relation(fields: [DeliveryId], references: [DeliveryId], onUpdate: NoAction, map: "FK_Discrepancies_Deliveries_DeliveryId")
+  GoodsReceipts         GoodsReceipts          @relation(fields: [GrnId], references: [GrnId], onDelete: Cascade, onUpdate: NoAction, map: "FK_Discrepancies_GoodsReceipts_GrnId")
+  Items                 Items                  @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_Discrepancies_Items_ItemId")
+  LossReports           LossReports?           @relation(fields: [LossReportId], references: [LossReportId], onUpdate: NoAction, map: "FK_Discrepancies_LossReports_LossReportId")
+  NonConformanceReports NonConformanceReports? @relation(fields: [NcrId], references: [NcrId], onUpdate: NoAction, map: "FK_Discrepancies_NonConformanceReports_NcrId")
+  PurchaseOrders        PurchaseOrders         @relation(fields: [PoId], references: [PoId], onUpdate: NoAction, map: "FK_Discrepancies_PurchaseOrders_PoId")
+  ReturnToVendors       ReturnToVendors?       @relation(fields: [RtvId], references: [RtvId], onUpdate: NoAction, map: "FK_Discrepancies_ReturnToVendors_RtvId")
+
+  @@index([DeliveryId], map: "IX_Discrepancies_DeliveryId")
+  @@index([GrnId], map: "IX_Discrepancies_GrnId")
+  @@index([ItemId], map: "IX_Discrepancies_ItemId")
+  @@index([NcrId], map: "IX_Discrepancies_NcrId")
+  @@index([PoId], map: "IX_Discrepancies_PoId")
+  @@index([RtvId], map: "IX_Discrepancies_RtvId")
+}
+
+model DisposalRecordItems {
+  DisposalItemId   Int             @id(map: "PK_DisposalRecordItems") @default(autoincrement())
+  DisposalId       Int
+  LotId            Int
+  ItemId           Int
+  QuantityDisposed Decimal         @db.Decimal(18, 3)
+  UnitCost         Decimal         @db.Decimal(18, 4)
+  Notes            String?
+  DisposalRecords  DisposalRecords @relation(fields: [DisposalId], references: [DisposalId], onDelete: Cascade, onUpdate: NoAction, map: "FK_DisposalRecordItems_DisposalRecords_DisposalId")
+  InventoryLots    InventoryLots   @relation(fields: [LotId], references: [LotId], onUpdate: NoAction, map: "FK_DisposalRecordItems_InventoryLots_LotId")
+  Items            Items           @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_DisposalRecordItems_Items_ItemId")
+
+  @@index([DisposalId], map: "IX_DisposalRecordItems_DisposalId")
+  @@index([ItemId], map: "IX_DisposalRecordItems_ItemId")
+  @@index([LotId], map: "IX_DisposalRecordItems_LotId")
+}
+
+model DisposalRecords {
+  DisposalId          Int                   @id(map: "PK_DisposalRecords") @default(autoincrement())
+  DisposalNumber      String                @unique(map: "IX_DisposalRecords_DisposalNumber")
+  DisposalDate        DateTime              @db.Timestamptz(6)
+  Reason              String
+  TotalCost           Decimal               @db.Decimal(18, 4)
+  AuthorizedBy        String
+  WitnessName         String?
+  Notes               String?
+  DisposalRecordItems DisposalRecordItems[]
+}
+
+model DocumentSequences {
+  DocumentSequenceId Int    @id(map: "PK_DocumentSequences") @default(autoincrement())
+  DocType            String
+  Year               Int
+  LastNumber         Int
+
+  @@unique([DocType, Year], map: "IX_DocumentSequences_DocType_Year")
+}
+
+model Drivers {
+  DriverId    Int           @id(map: "PK_Drivers") @default(autoincrement())
+  DriverName  String
+  Number      String
+  Inventories Inventories[]
+}
+
+model FinishedProducts {
+  ProductId          Int                  @id(map: "PK_FinishedProducts") @default(autoincrement())
+  ItemId             Int
+  SellingPrice       Decimal              @db.Decimal
+  Sku                String
+  Variant            String               @default("")
+  BranchRequestItems BranchRequestItems[]
+  BranchReturnItems  BranchReturnItems[]
+  Items              Items                @relation(fields: [ItemId], references: [ItemId], onDelete: Cascade, onUpdate: NoAction, map: "FK_FinishedProducts_Items_ItemId")
+  ProductionBatches  ProductionBatches[]
+  Recipes            Recipes[]
+  StockTransfers     StockTransfers[]
+
+  @@index([ItemId], map: "IX_FinishedProducts_ItemId")
+}
+
+model GoodsReceiptItems {
+  GrnItemId                  Int                   @id(map: "PK_GoodsReceiptItems") @default(autoincrement())
+  GrnId                      Int
+  PoItemId                   Int
+  ItemId                     Int
+  OrderedQuantity            Decimal               @db.Decimal(18, 3)
+  DeliveredQuantity          Decimal               @db.Decimal(18, 3)
+  PurchaseUomId              Int
+  LotId                      Int?
+  SupplierLotCode            String?
+  ManufactureDate            DateTime?             @db.Date
+  ExpiryDate                 DateTime?             @db.Date
+  DeclaredQuantity           Decimal?              @db.Decimal(18, 3)
+  DeliveryItemId             Int?
+  Notes                      String?
+  PreviouslyReceivedQuantity Decimal               @default(0.0) @db.Decimal(18, 3)
+  VarianceQuantity           Decimal               @default(0.0) @db.Decimal(18, 3)
+  VarianceType               String?
+  DeliveryItems              DeliveryItems?        @relation(fields: [DeliveryItemId], references: [DeliveryItemId], onUpdate: NoAction, map: "FK_GoodsReceiptItems_DeliveryItems_DeliveryItemId")
+  GoodsReceipts              GoodsReceipts         @relation(fields: [GrnId], references: [GrnId], onDelete: Cascade, onUpdate: NoAction, map: "FK_GoodsReceiptItems_GoodsReceipts_GrnId")
+  InventoryLots              InventoryLots?        @relation(fields: [LotId], references: [LotId], onDelete: Restrict, onUpdate: NoAction, map: "FK_GoodsReceiptItems_InventoryLots_LotId")
+  Items                      Items                 @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_GoodsReceiptItems_Items_ItemId")
+  PurchaseOrderItems         PurchaseOrderItems    @relation(fields: [PoItemId], references: [PoItemId], onUpdate: NoAction, map: "FK_GoodsReceiptItems_PurchaseOrderItems_PoItemId")
+  UnitOfMeasures             UnitOfMeasures        @relation(fields: [PurchaseUomId], references: [UomId], onUpdate: NoAction, map: "FK_GoodsReceiptItems_UnitOfMeasures_PurchaseUomId")
+  PutAwayTransactions        PutAwayTransactions[]
+  StockInLines               StockInLines[]
+
+  @@index([DeliveryItemId], map: "IX_GoodsReceiptItems_DeliveryItemId")
+  @@index([GrnId], map: "IX_GoodsReceiptItems_GrnId")
+  @@index([ItemId], map: "IX_GoodsReceiptItems_ItemId")
+  @@index([LotId], map: "IX_GoodsReceiptItems_LotId")
+  @@index([PoItemId], map: "IX_GoodsReceiptItems_PoItemId")
+  @@index([PurchaseUomId], map: "IX_GoodsReceiptItems_PurchaseUomId")
+}
+
+model GoodsReceipts {
+  GrnId                 Int                   @id(map: "PK_GoodsReceipts") @default(autoincrement())
+  GrnNumber             String                @unique(map: "IX_GoodsReceipts_GrnNumber")
+  PoId                  Int
+  SupplierId            Int
+  ReceivingLocationId   Int
+  ReceivedDate          DateTime              @db.Timestamptz(6)
+  DeliveryNoteNumber    String
+  Carrier               String?
+  ReceivedBy            String
+  Status                String
+  Notes                 String?
+  DeliveryId            Int?
+  CreatedAt             DateTime              @default(dbgenerated("'-infinity'::timestamp with time zone")) @db.Timestamptz(6)
+  CreatedBy             String                @default("")
+  PostedAt              DateTime?             @db.Timestamptz(6)
+  PostedBy              String?
+  ReceivingBay          String?
+  SupplierDrNumber      String?
+  SupplierInvoiceNumber String?
+  RejectedAt            DateTime?             @db.Timestamptz(6)
+  RejectedBy            String?
+  RejectionReason       String?
+  Discrepancies         Discrepancies[]
+  GoodsReceiptItems     GoodsReceiptItems[]
+  Deliveries            Deliveries?           @relation(fields: [DeliveryId], references: [DeliveryId], onUpdate: NoAction, map: "FK_GoodsReceipts_Deliveries_DeliveryId")
+  Locations             Locations             @relation(fields: [ReceivingLocationId], references: [LocationId], onUpdate: NoAction, map: "FK_GoodsReceipts_Locations_ReceivingLocationId")
+  PurchaseOrders        PurchaseOrders        @relation(fields: [PoId], references: [PoId], onUpdate: NoAction, map: "FK_GoodsReceipts_PurchaseOrders_PoId")
+  Suppliers             Suppliers             @relation(fields: [SupplierId], references: [SupplierId], onUpdate: NoAction, map: "FK_GoodsReceipts_Suppliers_SupplierId")
+  LossReports           LossReports[]
+  PutAwayTransactions   PutAwayTransactions[]
+  StockIns              StockIns[]
+
+  @@index([DeliveryId], map: "IX_GoodsReceipts_DeliveryId")
+  @@index([PoId], map: "IX_GoodsReceipts_PoId")
+  @@index([ReceivingLocationId], map: "IX_GoodsReceipts_ReceivingLocationId")
+  @@index([SupplierId], map: "IX_GoodsReceipts_SupplierId")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Inventories {
+  InventoryId  Int       @id(map: "PK_Inventories") @default(autoincrement())
+  DriverId     Int?
+  ItemId       Int
+  LocationId   Int
+  CurrentStock Decimal   @db.Decimal(18, 3)
+  Drivers      Drivers?  @relation(fields: [DriverId], references: [DriverId], onDelete: NoAction, onUpdate: NoAction, map: "FK_Inventories_Drivers_DriverId")
+  Items        Items     @relation(fields: [ItemId], references: [ItemId], onDelete: Cascade, onUpdate: NoAction, map: "FK_Inventories_Items_ItemId")
+  Locations    Locations @relation(fields: [LocationId], references: [LocationId], onDelete: Cascade, onUpdate: NoAction, map: "FK_Inventories_Locations_LocationId")
+
+  @@unique([ItemId, LocationId], map: "IX_Inventories_ItemId_LocationId")
+  @@index([DriverId], map: "IX_Inventories_DriverId")
+  @@index([LocationId], map: "IX_Inventories_LocationId")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model InventoryLots {
+  LotId                  Int                      @id(map: "PK_InventoryLots") @default(autoincrement())
+  LotCode                String
+  ItemId                 Int
+  LocationId             Int
+  SourceType             String
+  SupplierId             Int?
+  SupplierLotNo          String?
+  GrnLineId              Int?
+  ProductionOrderId      Int?
+  ReceivedDate           DateTime                 @db.Timestamptz(6)
+  ManufactureDate        DateTime?                @db.Date
+  ExpiryDate             DateTime?                @db.Date
+  IsExpiryEstimated      Boolean
+  QuantityReceived       Decimal                  @db.Decimal(18, 3)
+  QuantityRemaining      Decimal                  @db.Decimal(18, 3)
+  UomId                  Int
+  UnitCost               Decimal                  @db.Decimal(18, 6)
+  Status                 String
+  HoldReason             String?
+  IsOpeningBalance       Boolean
+  BatchConsumptions      BatchConsumptions[]
+  BranchReturnItems      BranchReturnItems[]
+  CycleCountItems        CycleCountItems[]
+  DisposalRecordItems    DisposalRecordItems[]
+  GoodsReceiptItems      GoodsReceiptItems[]
+  Items                  Items                    @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_InventoryLots_Items_ItemId")
+  Locations              Locations                @relation(fields: [LocationId], references: [LocationId], onUpdate: NoAction, map: "FK_InventoryLots_Locations_LocationId")
+  Suppliers              Suppliers?               @relation(fields: [SupplierId], references: [SupplierId], onDelete: Restrict, onUpdate: NoAction, map: "FK_InventoryLots_Suppliers_SupplierId")
+  UnitOfMeasures         UnitOfMeasures           @relation(fields: [UomId], references: [UomId], onUpdate: NoAction, map: "FK_InventoryLots_UnitOfMeasures_UomId")
+  LossReports            LossReports[]
+  NonConformanceReports  NonConformanceReports[]
+  ProductionBatches      ProductionBatches[]
+  PutAwayTransactions    PutAwayTransactions[]
+  QualityInspectionItems QualityInspectionItems[]
+  ReturnToVendors        ReturnToVendors[]
+  StockInLines           StockInLines[]
+  StockLedgers           StockLedgers[]
+
+  @@unique([LotCode, LocationId], map: "IX_InventoryLots_LotCode_LocationId")
+  @@index([ExpiryDate], map: "IX_InventoryLots_ExpiryDate")
+  @@index([ItemId, LocationId, Status], map: "IX_InventoryLots_ItemLocationStatus")
+  @@index([LocationId], map: "IX_InventoryLots_LocationId")
+  @@index([SupplierId], map: "IX_InventoryLots_SupplierId")
+  @@index([UomId], map: "IX_InventoryLots_UomId")
+}
+
+model InventoryMovementLogs {
+  MovementId     Int       @id(map: "PK_InventoryMovementLogs") @default(autoincrement())
+  ItemId         Int
+  LocationId     Int
+  ChangeQuantity Decimal   @db.Decimal(18, 3)
+  ActionType     String
+  ReferenceId    String
+  UserId         String
+  Timestamp      DateTime  @db.Timestamptz(6)
+  UserName       String    @default("")
+  Items          Items     @relation(fields: [ItemId], references: [ItemId], onDelete: Cascade, onUpdate: NoAction, map: "FK_InventoryMovementLogs_Items_ItemId")
+  Locations      Locations @relation(fields: [LocationId], references: [LocationId], onDelete: Cascade, onUpdate: NoAction, map: "FK_InventoryMovementLogs_Locations_LocationId")
+
+  @@index([ItemId], map: "IX_InventoryMovementLogs_ItemId")
+  @@index([LocationId], map: "IX_InventoryMovementLogs_LocationId")
+}
+
+model Items {
+  ItemId                                          Int                        @id(map: "PK_Items") @default(autoincrement())
+  ItemName                                        String
+  UomId                                           Int
+  CategoryId                                      Int
+  MinStockLevel                                   Decimal                    @db.Decimal(18, 3)
+  MaxStockLevel                                   Decimal                    @db.Decimal(18, 3)
+  IsActive                                        Boolean
+  StockUomId                                      Int                        @default(0)
+  ItemCode                                        String                     @default("")
+  IsExpiryTracked                                 Boolean                    @default(false)
+  IsLotTracked                                    Boolean                    @default(false)
+  IsQaRequired                                    Boolean                    @default(false)
+  IsSerialTracked                                 Boolean                    @default(false)
+  BatchConsumptions                               BatchConsumptions[]
+  CycleCountItems                                 CycleCountItems[]
+  DeliveryItems                                   DeliveryItems[]
+  Discrepancies                                   Discrepancies[]
+  DisposalRecordItems                             DisposalRecordItems[]
+  FinishedProducts                                FinishedProducts[]
+  GoodsReceiptItems                               GoodsReceiptItems[]
+  Inventories                                     Inventories[]
+  InventoryLots                                   InventoryLots[]
+  InventoryMovementLogs                           InventoryMovementLogs[]
+  Category                                        Categories                 @relation(fields: [CategoryId], references: [CategoryId], onDelete: Cascade, onUpdate: NoAction, map: "FK_Items_Categories_CategoryId")
+  UnitOfMeasures_Items_StockUomIdToUnitOfMeasures UnitOfMeasures             @relation("Items_StockUomIdToUnitOfMeasures", fields: [StockUomId], references: [UomId], onUpdate: NoAction, map: "FK_Items_UnitOfMeasures_StockUomId")
+  Uom                                             UnitOfMeasures             @relation("Items_UomIdToUnitOfMeasures", fields: [UomId], references: [UomId], onUpdate: NoAction, map: "FK_Items_UnitOfMeasures_UomId")
+  LossReports                                     LossReports[]
+  NonConformanceReports                           NonConformanceReports[]
+  PurchaseOrderItems                              PurchaseOrderItems[]
+  PurchaseRequisitionItems                        PurchaseRequisitionItems[]
+  PutAwayTransactions                             PutAwayTransactions[]
+  QualityInspectionItems                          QualityInspectionItems[]
+  RecipeIngredients                               RecipeIngredients[]
+  ReturnToVendors                                 ReturnToVendors[]
+  StockInLines                                    StockInLines[]
+  StockLedgers                                    StockLedgers[]
+  SupplierItems                                   SupplierItems[]
+
+  @@index([CategoryId], map: "IX_Items_CategoryId")
+  @@index([StockUomId], map: "IX_Items_StockUomId")
+  @@index([UomId], map: "IX_Items_UomId")
+}
+
+model Locations {
+  LocationId                                                Int                     @id(map: "PK_Locations") @default(autoincrement())
+  LocationName                                              String
+  LocationType                                              String
+  Status                                                    String                  @default("")
+  Address                                                   String                  @default("")
+  IsActive                                                  Boolean                 @default(false)
+  IsSystemLocation                                          Boolean                 @default(false)
+  ParentLocationId                                          Int?
+  BranchRequests                                            BranchRequests[]
+  BranchReturns                                             BranchReturns[]
+  CycleCounts                                               CycleCounts[]
+  Deliveries                                                Deliveries[]
+  GoodsReceipts                                             GoodsReceipts[]
+  Inventories                                               Inventories[]
+  InventoryLots                                             InventoryLots[]
+  InventoryMovementLogs                                     InventoryMovementLogs[]
+  Locations                                                 Locations?              @relation("LocationsToLocations", fields: [ParentLocationId], references: [LocationId], onDelete: Restrict, onUpdate: NoAction, map: "FK_Locations_Locations_ParentLocationId")
+  other_Locations                                           Locations[]             @relation("LocationsToLocations")
+  PutAwayTransactions                                       PutAwayTransactions[]
+  StockLedgers                                              StockLedgers[]
+  StockTransfers_StockTransfers_DestLocationIdToLocations   StockTransfers[]        @relation("StockTransfers_DestLocationIdToLocations")
+  StockTransfers_StockTransfers_SourceLocationIdToLocations StockTransfers[]        @relation("StockTransfers_SourceLocationIdToLocations")
+
+  @@index([ParentLocationId], map: "IX_Locations_ParentLocationId")
+}
+
+model LossReports {
+  LossReportId       Int             @id(map: "PK_LossReports") @default(autoincrement())
+  LossReportNumber   String          @unique(map: "IX_LossReports_LossReportNumber")
+  DiscrepancyId      Int?
+  GrnId              Int?
+  PoId               Int?
+  LotId              Int?
+  ItemId             Int
+  LostQuantity       Decimal         @db.Decimal(18, 3)
+  UomId              Int
+  Reason             String
+  Notes              String?
+  AuthorisedBy       String
+  CreatedBy          String
+  CreatedAt          DateTime        @db.Timestamptz(6)
+  StockLedgerEntryId BigInt?
+  AcknowledgedAt     DateTime?       @db.Timestamptz(6)
+  AcknowledgedBy     String?
+  IsAcknowledged     Boolean         @default(false)
+  Discrepancies      Discrepancies?
+  GoodsReceipts      GoodsReceipts?  @relation(fields: [GrnId], references: [GrnId], onUpdate: NoAction, map: "FK_LossReports_GoodsReceipts_GrnId")
+  InventoryLots      InventoryLots?  @relation(fields: [LotId], references: [LotId], onUpdate: NoAction, map: "FK_LossReports_InventoryLots_LotId")
+  Items              Items           @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_LossReports_Items_ItemId")
+  PurchaseOrders     PurchaseOrders? @relation(fields: [PoId], references: [PoId], onUpdate: NoAction, map: "FK_LossReports_PurchaseOrders_PoId")
+  StockLedgers       StockLedgers?   @relation(fields: [StockLedgerEntryId], references: [LedgerId], onUpdate: NoAction, map: "FK_LossReports_StockLedgers_StockLedgerEntryId")
+  UnitOfMeasures     UnitOfMeasures  @relation(fields: [UomId], references: [UomId], onUpdate: NoAction, map: "FK_LossReports_UnitOfMeasures_UomId")
+
+  @@index([DiscrepancyId], map: "IX_LossReports_DiscrepancyId")
+  @@index([GrnId], map: "IX_LossReports_GrnId")
+  @@index([ItemId], map: "IX_LossReports_ItemId")
+  @@index([LotId], map: "IX_LossReports_LotId")
+  @@index([PoId], map: "IX_LossReports_PoId")
+  @@index([StockLedgerEntryId], map: "IX_LossReports_StockLedgerEntryId")
+  @@index([UomId], map: "IX_LossReports_UomId")
+}
+
+model NonConformanceReports {
+  NcrId              Int                 @id(map: "PK_NonConformanceReports") @default(autoincrement())
+  NcrNumber          String              @unique(map: "IX_NonConformanceReports_NcrNumber")
+  InspectionId       Int?
+  SupplierId         Int
+  ItemId             Int
+  LotId              Int?
+  DefectiveQuantity  Decimal             @db.Decimal(18, 3)
+  DefectType         String
+  Severity           String
+  RootCause          String?
+  CorrectiveAction   String?
+  Status             String
+  CreatedBy          String
+  CreatedAt          DateTime            @db.Timestamptz(6)
+  ResolvedBy         String?
+  ResolvedAt         DateTime?           @db.Timestamptz(6)
+  Disposition        String?
+  DispositionAt      DateTime?           @db.Timestamptz(6)
+  DispositionBy      String?
+  DispositionNotes   String?
+  Discrepancies      Discrepancies[]
+  InventoryLots      InventoryLots?      @relation(fields: [LotId], references: [LotId], onDelete: Restrict, onUpdate: NoAction, map: "FK_NonConformanceReports_InventoryLots_LotId")
+  Items              Items               @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_NonConformanceReports_Items_ItemId")
+  QualityInspections QualityInspections? @relation(fields: [InspectionId], references: [InspectionId], onUpdate: NoAction, map: "FK_NonConformanceReports_QualityInspections_InspectionId")
+  Suppliers          Suppliers           @relation(fields: [SupplierId], references: [SupplierId], onUpdate: NoAction, map: "FK_NonConformanceReports_Suppliers_SupplierId")
+  ReturnToVendors    ReturnToVendors[]
+
+  @@index([InspectionId], map: "IX_NonConformanceReports_InspectionId")
+  @@index([ItemId], map: "IX_NonConformanceReports_ItemId")
+  @@index([LotId], map: "IX_NonConformanceReports_LotId")
+  @@index([SupplierId], map: "IX_NonConformanceReports_SupplierId")
+}
+
+model ProductionBatches {
+  BatchId           Int                 @id(map: "PK_ProductionBatches") @default(autoincrement())
+  RecipeId          Int
+  ProductId         Int
+  BatchMultiplier   Decimal             @db.Decimal(18, 3)
+  EstimatedQuantity Decimal             @db.Decimal(18, 3)
+  ActualQuantity    Decimal             @db.Decimal(18, 3)
+  ProductionDate    DateTime            @db.Timestamptz(6)
+  Stage             String
+  QualityStatus     String
+  RejectionReason   String
+  ImageUrl          String
+  Notes             String
+  AssignedCook      String              @default("")
+  Status            String              @default("")
+  BatchNumber       String              @default("")
+  CompletedDate     DateTime?           @db.Timestamptz(6)
+  FgLotId           Int?
+  ScrapQuantity     Decimal             @default(0.0) @db.Decimal(18, 3)
+  ScrapReason       String?
+  TotalMaterialCost Decimal             @default(0.0) @db.Decimal(18, 4)
+  UnitCost          Decimal             @default(0.0) @db.Decimal(18, 4)
+  YieldPercentage   Decimal             @default(0.0) @db.Decimal(18, 2)
+  Purpose           String              @default("Inventory Replenishment")
+  BatchConsumptions BatchConsumptions[]
+  FinishedProducts  FinishedProducts    @relation(fields: [ProductId], references: [ProductId], onDelete: Cascade, onUpdate: NoAction, map: "FK_ProductionBatches_FinishedProducts_ProductId")
+  InventoryLots     InventoryLots?      @relation(fields: [FgLotId], references: [LotId], onUpdate: NoAction, map: "FK_ProductionBatches_InventoryLots_FgLotId")
+  Recipes           Recipes             @relation(fields: [RecipeId], references: [RecipeId], onDelete: Cascade, onUpdate: NoAction, map: "FK_ProductionBatches_Recipes_RecipeId")
+
+  @@index([FgLotId], map: "IX_ProductionBatches_FgLotId")
+  @@index([ProductId], map: "IX_ProductionBatches_ProductId")
+  @@index([RecipeId], map: "IX_ProductionBatches_RecipeId")
+}
+
+model PurchaseOrderItems {
+  PoItemId          Int                 @id(map: "PK_PurchaseOrderItems") @default(autoincrement())
+  PoId              Int
+  ItemId            Int
+  SupplierId        Int
+  PoItemQuantity    Decimal             @db.Decimal(18, 3)
+  ReceivedQuantity  Decimal             @db.Decimal(18, 3)
+  PurchaseOrderPoId Int?
+  PurchaseUomId     Int                 @default(1)
+  TotalPrice        Decimal             @default(0.0) @db.Decimal(18, 4)
+  DeliveryItems     DeliveryItems[]
+  GoodsReceiptItems GoodsReceiptItems[]
+  Items             Items               @relation(fields: [ItemId], references: [ItemId], onDelete: Cascade, onUpdate: NoAction, map: "FK_PurchaseOrderItems_Items_ItemId")
+  PurchaseOrders    PurchaseOrders?     @relation(fields: [PurchaseOrderPoId], references: [PoId], onDelete: NoAction, onUpdate: NoAction, map: "FK_PurchaseOrderItems_PurchaseOrders_PurchaseOrderPoId")
+  Suppliers         Suppliers           @relation(fields: [SupplierId], references: [SupplierId], onDelete: Cascade, onUpdate: NoAction, map: "FK_PurchaseOrderItems_Suppliers_SupplierId")
+  UnitOfMeasures    UnitOfMeasures      @relation(fields: [PurchaseUomId], references: [UomId], onUpdate: NoAction, map: "FK_PurchaseOrderItems_UnitOfMeasures_PurchaseUomId")
+
+  @@index([ItemId], map: "IX_PurchaseOrderItems_ItemId")
+  @@index([PurchaseOrderPoId], map: "IX_PurchaseOrderItems_PurchaseOrderPoId")
+  @@index([PurchaseUomId], map: "IX_PurchaseOrderItems_PurchaseUomId")
+  @@index([SupplierId], map: "IX_PurchaseOrderItems_SupplierId")
+}
+
+model PurchaseOrders {
+  PoId                    Int                   @id(map: "PK_PurchaseOrders") @default(autoincrement())
+  SupplierId              Int
+  OrderDate               DateTime              @db.Timestamptz(6)
+  ExpectedArrivalDate     DateTime              @db.Timestamptz(6)
+  Status                  String
+  PaymentType             String
+  ProofImageUrl           String
+  TotalAmount             Decimal               @db.Decimal(18, 4)
+  InspectedBy             String?
+  QaInspectedDate         DateTime?             @db.Timestamptz(6)
+  QaNotes                 String?
+  QaStatus                String?
+  PoNumber                String                @unique(map: "IX_PurchaseOrders_PoNumber") @default("")
+  AdminNotes              String?
+  PrId                    Int?
+  PurchaseRequisitionPrId Int?
+  RequestedBy             String                @default("")
+  Deliveries              Deliveries[]
+  Discrepancies           Discrepancies[]
+  GoodsReceipts           GoodsReceipts[]
+  LossReports             LossReports[]
+  PurchaseOrderItems      PurchaseOrderItems[]
+  PurchaseRequisition     PurchaseRequisitions? @relation(fields: [PurchaseRequisitionPrId], references: [PrId], onDelete: NoAction, onUpdate: NoAction, map: "FK_PurchaseOrders_PurchaseRequisitions_PurchaseRequisitionPrId")
+  Suppliers               Suppliers             @relation(fields: [SupplierId], references: [SupplierId], onDelete: Cascade, onUpdate: NoAction, map: "FK_PurchaseOrders_Suppliers_SupplierId")
+
+  @@index([PurchaseRequisitionPrId], map: "IX_PurchaseOrders_PurchaseRequisitionPrId")
+  @@index([SupplierId], map: "IX_PurchaseOrders_SupplierId")
+}
+
+model PurchaseRequisitionItems {
+  PrItemId             Int                  @id(map: "PK_PurchaseRequisitionItems") @default(autoincrement())
+  PrId                 Int
+  ItemId               Int
+  SuggestedSupplierId  Int?
+  RequestedQuantity    Decimal              @db.Decimal(18, 3)
+  PurchaseUomId        Int
+  EstimatedUnitPrice   Decimal              @db.Decimal(18, 4)
+  Items                Items                @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_PurchaseRequisitionItems_Items_ItemId")
+  PurchaseRequisitions PurchaseRequisitions @relation(fields: [PrId], references: [PrId], onDelete: Cascade, onUpdate: NoAction, map: "FK_PurchaseRequisitionItems_PurchaseRequisitions_PrId")
+  SuggestedSuppliers   Suppliers?           @relation(fields: [SuggestedSupplierId], references: [SupplierId], onDelete: Restrict, onUpdate: NoAction, map: "FK_PurchaseRequisitionItems_Suppliers_SuggestedSupplierId")
+  UnitOfMeasures       UnitOfMeasures       @relation(fields: [PurchaseUomId], references: [UomId], onUpdate: NoAction, map: "FK_PurchaseRequisitionItems_UnitOfMeasures_PurchaseUomId")
+
+  @@index([ItemId], map: "IX_PurchaseRequisitionItems_ItemId")
+  @@index([PrId], map: "IX_PurchaseRequisitionItems_PrId")
+  @@index([PurchaseUomId], map: "IX_PurchaseRequisitionItems_PurchaseUomId")
+  @@index([SuggestedSupplierId], map: "IX_PurchaseRequisitionItems_SuggestedSupplierId")
+}
+
+model PurchaseRequisitions {
+  PrId                     Int                        @id(map: "PK_PurchaseRequisitions") @default(autoincrement())
+  PrNumber                 String                     @unique(map: "IX_PurchaseRequisitions_PrNumber")
+  Department               String
+  RequestedBy              String
+  RequestDate              DateTime                   @db.Timestamptz(6)
+  RequiredDate             DateTime                   @db.Timestamptz(6)
+  Status                   String
+  Purpose                  String?
+  EstimatedTotalAmount     Decimal                    @db.Decimal(18, 4)
+  GeneratedPoNumbers       String?
+  AdminNotes               String?
+  Notes                    String?
+  Priority                 String?
+  RequestType              String?
+  UpdatedAt                DateTime?                  @db.Timestamptz(6)
+  PurchaseOrders           PurchaseOrders[]
+  PurchaseRequisitionItems PurchaseRequisitionItems[]
+
+  @@index([Status], map: "IX_PurchaseRequisitions_Status")
+}
+
+model PutAwayTransactions {
+  PutAwayId             Int                 @id(map: "PK_PutAwayTransactions") @default(autoincrement())
+  PutAwayNumber         String              @unique(map: "IX_PutAwayTransactions_PutAwayNumber")
+  GrnId                 Int
+  GrnItemId             Int
+  QaInspectionId        Int?
+  ItemId                Int
+  AcceptedQuantity      Decimal             @db.Decimal(18, 3)
+  UomId                 Int
+  DestinationLocationId Int?
+  LotId                 Int?
+  LotCode               String?
+  ExpiryDate            DateTime?           @db.Date
+  SerialNumber          String?
+  Status                String
+  PerformedBy           String?
+  CreatedAt             DateTime            @db.Timestamptz(6)
+  CompletedAt           DateTime?           @db.Timestamptz(6)
+  Notes                 String?
+  GoodsReceiptItems     GoodsReceiptItems   @relation(fields: [GrnItemId], references: [GrnItemId], onUpdate: NoAction, map: "FK_PutAwayTransactions_GoodsReceiptItems_GrnItemId")
+  GoodsReceipts         GoodsReceipts       @relation(fields: [GrnId], references: [GrnId], onDelete: Cascade, onUpdate: NoAction, map: "FK_PutAwayTransactions_GoodsReceipts_GrnId")
+  InventoryLots         InventoryLots?      @relation(fields: [LotId], references: [LotId], onUpdate: NoAction, map: "FK_PutAwayTransactions_InventoryLots_LotId")
+  Items                 Items               @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_PutAwayTransactions_Items_ItemId")
+  Locations             Locations?          @relation(fields: [DestinationLocationId], references: [LocationId], onUpdate: NoAction, map: "FK_PutAwayTransactions_Locations_DestinationLocationId")
+  QualityInspections    QualityInspections? @relation(fields: [QaInspectionId], references: [InspectionId], onUpdate: NoAction, map: "FK_PutAwayTransactions_QualityInspections_QaInspectionId")
+  UnitOfMeasures        UnitOfMeasures      @relation(fields: [UomId], references: [UomId], onUpdate: NoAction, map: "FK_PutAwayTransactions_UnitOfMeasures_UomId")
+
+  @@index([DestinationLocationId], map: "IX_PutAwayTransactions_DestinationLocationId")
+  @@index([GrnId], map: "IX_PutAwayTransactions_GrnId")
+  @@index([GrnItemId], map: "IX_PutAwayTransactions_GrnItemId")
+  @@index([ItemId], map: "IX_PutAwayTransactions_ItemId")
+  @@index([LotId], map: "IX_PutAwayTransactions_LotId")
+  @@index([QaInspectionId], map: "IX_PutAwayTransactions_QaInspectionId")
+  @@index([UomId], map: "IX_PutAwayTransactions_UomId")
+}
+
+model QualityInspectionItems {
+  InspectionItemId   Int                @id(map: "PK_QualityInspectionItems") @default(autoincrement())
+  InspectionId       Int
+  ItemId             Int
+  LotId              Int?
+  DeliveredQuantity  Decimal            @db.Decimal(18, 3)
+  AcceptedQuantity   Decimal            @db.Decimal(18, 3)
+  RejectedQuantity   Decimal            @db.Decimal(18, 3)
+  ConcessionQuantity Decimal            @db.Decimal(18, 3)
+  DefectReason       String?
+  Notes              String?
+  InventoryLots      InventoryLots?     @relation(fields: [LotId], references: [LotId], onDelete: Restrict, onUpdate: NoAction, map: "FK_QualityInspectionItems_InventoryLots_LotId")
+  Items              Items              @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_QualityInspectionItems_Items_ItemId")
+  QualityInspections QualityInspections @relation(fields: [InspectionId], references: [InspectionId], onDelete: Cascade, onUpdate: NoAction, map: "FK_QualityInspectionItems_QualityInspections_InspectionId")
+
+  @@index([InspectionId], map: "IX_QualityInspectionItems_InspectionId")
+  @@index([ItemId], map: "IX_QualityInspectionItems_ItemId")
+  @@index([LotId], map: "IX_QualityInspectionItems_LotId")
+}
+
+model QualityInspections {
+  InspectionId           Int                      @id(map: "PK_QualityInspections") @default(autoincrement())
+  InspectionNumber       String                   @unique(map: "IX_QualityInspections_InspectionNumber")
+  InspectionType         String
+  ReferenceType          String
+  ReferenceId            Int
+  ReferenceNumber        String
+  InspectorId            String
+  InspectorName          String
+  InspectionDate         DateTime                 @db.Timestamptz(6)
+  Status                 String
+  OverallNotes           String?
+  CompletedAt            DateTime?                @db.Timestamptz(6)
+  CompletedBy            String?
+  TotalAcceptedQuantity  Decimal                  @default(0.0) @db.Decimal(18, 3)
+  TotalReceivedQuantity  Decimal                  @default(0.0) @db.Decimal(18, 3)
+  TotalRejectedQuantity  Decimal                  @default(0.0) @db.Decimal(18, 3)
+  NonConformanceReports  NonConformanceReports[]
+  PutAwayTransactions    PutAwayTransactions[]
+  QualityInspectionItems QualityInspectionItems[]
+
+  @@index([ReferenceType, ReferenceId], map: "IX_QualityInspections_Reference")
+}
+
+model RecallRecords {
+  RecallId              Int       @id(map: "PK_RecallRecords") @default(autoincrement())
+  RecallNumber          String    @unique(map: "IX_RecallRecords_RecallNumber")
+  TargetLotCode         String
+  Scope                 String
+  Reason                String
+  Status                String
+  InitiatedAt           DateTime  @db.Timestamptz(6)
+  CompletedAt           DateTime? @db.Timestamptz(6)
+  InitiatedBy           String
+  TotalUnitsAffected    Decimal   @db.Decimal(18, 3)
+  BranchesAffectedCount Int
+  AffectedSummaryJson   String?
+  Notes                 String?
+}
+
+model RecipeIngredients {
+  IngredientId     Int            @id(map: "PK_RecipeIngredients") @default(autoincrement())
+  RecipeId         Int
+  ItemId           Int
+  UomId            Int
+  StandardQuantity Decimal        @db.Decimal(18, 3)
+  Items            Items          @relation(fields: [ItemId], references: [ItemId], onDelete: Cascade, onUpdate: NoAction, map: "FK_RecipeIngredients_Items_ItemId")
+  Recipes          Recipes        @relation(fields: [RecipeId], references: [RecipeId], onDelete: Cascade, onUpdate: NoAction, map: "FK_RecipeIngredients_Recipes_RecipeId")
+  Uom              UnitOfMeasures @relation(fields: [UomId], references: [UomId], onDelete: Cascade, onUpdate: NoAction, map: "FK_RecipeIngredients_UnitOfMeasures_UomId")
+
+  @@index([ItemId], map: "IX_RecipeIngredients_ItemId")
+  @@index([RecipeId], map: "IX_RecipeIngredients_RecipeId")
+  @@index([UomId], map: "IX_RecipeIngredients_UomId")
+}
+
+model Recipes {
+  RecipeId          Int                 @id(map: "PK_Recipes") @default(autoincrement())
+  ProductId         Int
+  OutputQuantity    Decimal             @db.Decimal(18, 3)
+  Notes             String
+  IsActive          Boolean
+  RecipeName        String              @default("")
+  Status            String              @default("")
+  Version           Int                 @default(0)
+  YieldUomId        Int?
+  RecipeCode        String              @default("")
+  ProductionBatches ProductionBatches[]
+  RecipeIngredients RecipeIngredients[]
+  Product           FinishedProducts    @relation(fields: [ProductId], references: [ProductId], onDelete: Cascade, onUpdate: NoAction, map: "FK_Recipes_FinishedProducts_ProductId")
+  UnitOfMeasures    UnitOfMeasures?     @relation(fields: [YieldUomId], references: [UomId], onDelete: Restrict, onUpdate: NoAction, map: "FK_Recipes_UnitOfMeasures_YieldUomId")
+
+  @@index([ProductId], map: "IX_Recipes_ProductId")
+  @@index([YieldUomId], map: "IX_Recipes_YieldUomId")
+}
+
+model ReturnToVendors {
+  RtvId                 Int                    @id(map: "PK_ReturnToVendors") @default(autoincrement())
+  RtvNumber             String                 @unique(map: "IX_ReturnToVendors_RtvNumber")
+  NcrId                 Int?
+  SupplierId            Int
+  ItemId                Int
+  LotId                 Int
+  ReturnedQuantity      Decimal                @db.Decimal(18, 3)
+  Reason                String
+  Status                String
+  DispatchedDate        DateTime?              @db.Timestamptz(6)
+  CreditNoteNumber      String?
+  CreatedBy             String
+  CreatedAt             DateTime               @db.Timestamptz(6)
+  ApprovalRequestNotes  String?
+  ApprovedAt            DateTime?              @db.Timestamptz(6)
+  ApprovedBy            String?
+  RejectedAt            DateTime?              @db.Timestamptz(6)
+  RejectedBy            String?
+  RejectionReason       String?
+  Discrepancies         Discrepancies[]
+  InventoryLots         InventoryLots          @relation(fields: [LotId], references: [LotId], onUpdate: NoAction, map: "FK_ReturnToVendors_InventoryLots_LotId")
+  Items                 Items                  @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_ReturnToVendors_Items_ItemId")
+  NonConformanceReports NonConformanceReports? @relation(fields: [NcrId], references: [NcrId], onUpdate: NoAction, map: "FK_ReturnToVendors_NonConformanceReports_NcrId")
+  Suppliers             Suppliers              @relation(fields: [SupplierId], references: [SupplierId], onUpdate: NoAction, map: "FK_ReturnToVendors_Suppliers_SupplierId")
+
+  @@index([ItemId], map: "IX_ReturnToVendors_ItemId")
+  @@index([LotId], map: "IX_ReturnToVendors_LotId")
+  @@index([NcrId], map: "IX_ReturnToVendors_NcrId")
+  @@index([SupplierId], map: "IX_ReturnToVendors_SupplierId")
+}
+
+model StockInLines {
+  StockInLineId            Int                @id(map: "PK_StockInLines") @default(autoincrement())
+  StockInId                Int
+  GrnItemId                Int?
+  ItemId                   Int
+  PurchaseUomId            Int?
+  QuantityToStock          Decimal            @db.Decimal(18, 3)
+  CurrentStockBeforeCommit Decimal            @db.Decimal(18, 3)
+  LotCode                  String
+  ExpiryDate               DateTime?          @db.Timestamptz(6)
+  CommittedToInventory     Boolean
+  InventoryLotId           Int?
+  Notes                    String?
+  GoodsReceiptItems        GoodsReceiptItems? @relation(fields: [GrnItemId], references: [GrnItemId], onUpdate: NoAction, map: "FK_StockInLines_GoodsReceiptItems_GrnItemId")
+  InventoryLots            InventoryLots?     @relation(fields: [InventoryLotId], references: [LotId], onUpdate: NoAction, map: "FK_StockInLines_InventoryLots_InventoryLotId")
+  Items                    Items              @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_StockInLines_Items_ItemId")
+  StockIns                 StockIns           @relation(fields: [StockInId], references: [StockInId], onDelete: Cascade, onUpdate: NoAction, map: "FK_StockInLines_StockIns_StockInId")
+  UnitOfMeasures           UnitOfMeasures?    @relation(fields: [PurchaseUomId], references: [UomId], onDelete: Restrict, onUpdate: NoAction, map: "FK_StockInLines_UnitOfMeasures_PurchaseUomId")
+
+  @@index([GrnItemId], map: "IX_StockInLines_GrnItemId")
+  @@index([InventoryLotId], map: "IX_StockInLines_InventoryLotId")
+  @@index([ItemId], map: "IX_StockInLines_ItemId")
+  @@index([PurchaseUomId], map: "IX_StockInLines_PurchaseUomId")
+  @@index([StockInId], map: "IX_StockInLines_StockInId")
+}
+
+model StockIns {
+  StockInId       Int            @id(map: "PK_StockIns") @default(autoincrement())
+  StockInNumber   String         @unique(map: "IX_StockIns_StockInNumber")
+  GrnId           Int
+  Status          String
+  CreatedBy       String
+  CreatedAt       DateTime       @db.Timestamptz(6)
+  SubmittedBy     String?
+  SubmittedAt     DateTime?      @db.Timestamptz(6)
+  ApprovedBy      String?
+  ApprovedAt      DateTime?      @db.Timestamptz(6)
+  RejectedBy      String?
+  RejectedAt      DateTime?      @db.Timestamptz(6)
+  RejectionReason String?
+  Notes           String?
+  CommittedAt     DateTime?      @db.Timestamptz(6)
+  CommittedBy     String?
+  StockInLines    StockInLines[]
+  GoodsReceipts   GoodsReceipts  @relation(fields: [GrnId], references: [GrnId], onDelete: Cascade, onUpdate: NoAction, map: "FK_StockIns_GoodsReceipts_GrnId")
+
+  @@index([GrnId], map: "IX_StockIns_GrnId")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model StockLedgers {
+  LedgerId           BigInt         @id(map: "PK_StockLedgers") @default(autoincrement())
+  LotId              Int
+  ItemId             Int
+  LocationId         Int
+  MovementType       String
+  Quantity           Decimal        @db.Decimal(18, 3)
+  UomId              Int
+  UnitCost           Decimal        @db.Decimal(18, 6)
+  ReferenceType      String
+  ReferenceId        String
+  UserId             String
+  UserName           String
+  PostedAt           DateTime       @db.Timestamptz(6)
+  ReversalOfLedgerId BigInt?
+  Notes              String?
+  LossReports        LossReports[]
+  InventoryLots      InventoryLots  @relation(fields: [LotId], references: [LotId], onUpdate: NoAction, map: "FK_StockLedgers_InventoryLots_LotId")
+  Items              Items          @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_StockLedgers_Items_ItemId")
+  Locations          Locations      @relation(fields: [LocationId], references: [LocationId], onUpdate: NoAction, map: "FK_StockLedgers_Locations_LocationId")
+  StockLedgers       StockLedgers?  @relation("StockLedgersToStockLedgers", fields: [ReversalOfLedgerId], references: [LedgerId], onDelete: Restrict, onUpdate: NoAction, map: "FK_StockLedgers_StockLedgers_ReversalOfLedgerId")
+  other_StockLedgers StockLedgers[] @relation("StockLedgersToStockLedgers")
+
+  @@index([ItemId, LocationId, PostedAt], map: "IX_StockLedgers_ItemLocationPostedAt")
+  @@index([LocationId], map: "IX_StockLedgers_LocationId")
+  @@index([LotId], map: "IX_StockLedgers_LotId")
+  @@index([ReferenceType, ReferenceId], map: "IX_StockLedgers_Reference")
+}
+
+model StockTransfers {
+  TransferId                                           Int              @id(map: "PK_StockTransfers") @default(autoincrement())
+  ProductId                                            Int
+  SourceLocationId                                     Int
+  DestLocationId                                       Int
+  TransferQuantity                                     Decimal          @db.Decimal(18, 3)
+  Status                                               String
+  TransferDate                                         DateTime         @default(dbgenerated("'-infinity'::timestamp with time zone")) @db.Timestamptz(6)
+  BranchRequestId                                      Int?
+  DispatchedDate                                       DateTime?        @db.Timestamptz(6)
+  DriverName                                           String?
+  ReceivedBy                                           String?
+  ReceivedDate                                         DateTime?        @db.Timestamptz(6)
+  TransferNumber                                       String           @default("")
+  VehiclePlate                                         String?
+  BranchRequests                                       BranchRequests?  @relation(fields: [BranchRequestId], references: [BranchRequestId], onDelete: NoAction, onUpdate: NoAction, map: "FK_StockTransfers_BranchRequests_BranchRequestId")
+  FinishedProducts                                     FinishedProducts @relation(fields: [ProductId], references: [ProductId], onDelete: Cascade, onUpdate: NoAction, map: "FK_StockTransfers_FinishedProducts_ProductId")
+  Locations_StockTransfers_DestLocationIdToLocations   Locations        @relation("StockTransfers_DestLocationIdToLocations", fields: [DestLocationId], references: [LocationId], onUpdate: NoAction, map: "FK_StockTransfers_Locations_DestLocationId")
+  Locations_StockTransfers_SourceLocationIdToLocations Locations        @relation("StockTransfers_SourceLocationIdToLocations", fields: [SourceLocationId], references: [LocationId], onUpdate: NoAction, map: "FK_StockTransfers_Locations_SourceLocationId")
+
+  @@index([BranchRequestId], map: "IX_StockTransfers_BranchRequestId")
+  @@index([DestLocationId], map: "IX_StockTransfers_DestLocationId")
+  @@index([ProductId], map: "IX_StockTransfers_ProductId")
+  @@index([SourceLocationId], map: "IX_StockTransfers_SourceLocationId")
+}
+
+model SupplierDocuments {
+  DocumentId     Int       @id(map: "PK_SupplierDocuments") @default(autoincrement())
+  SupplierId     Int
+  DocumentType   String
+  DocumentNumber String
+  Title          String
+  IssueDate      DateTime  @db.Date
+  ExpiryDate     DateTime? @db.Date
+  FileUrl        String?
+  IsVerified     Boolean
+  VerifiedBy     String?
+  VerifiedAt     DateTime? @db.Timestamptz(6)
+  Notes          String?
+  CreatedAt      DateTime  @db.Timestamptz(6)
+  Suppliers      Suppliers @relation(fields: [SupplierId], references: [SupplierId], onUpdate: NoAction, map: "FK_SupplierDocuments_Suppliers_SupplierId")
+
+  @@index([ExpiryDate], map: "IX_SupplierDocuments_ExpiryDate")
+  @@index([SupplierId, DocumentType], map: "IX_SupplierDocuments_Supplier_Type")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model SupplierItems {
+  SupplierId        Int
+  ItemId            Int
+  SupplierSku       String?
+  SupplierItemName  String?
+  UnitPrice         Decimal        @db.Decimal(18, 4)
+  Currency          String
+  PurchaseUomId     Int
+  PackSize          Decimal        @db.Decimal(18, 3)
+  LeadTimeDays      Int
+  MinOrderQuantity  Decimal        @db.Decimal(18, 3)
+  IsPreferred       Boolean
+  LastPurchasePrice Decimal?       @db.Decimal(18, 4)
+  LastPurchaseDate  DateTime?      @db.Timestamptz(6)
+  IsActive          Boolean
+  Items             Items          @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_SupplierItems_Items_ItemId")
+  Suppliers         Suppliers      @relation(fields: [SupplierId], references: [SupplierId], onUpdate: NoAction, map: "FK_SupplierItems_Suppliers_SupplierId")
+  UnitOfMeasures    UnitOfMeasures @relation(fields: [PurchaseUomId], references: [UomId], onUpdate: NoAction, map: "FK_SupplierItems_UnitOfMeasures_PurchaseUomId")
+
+  @@id([SupplierId, ItemId], map: "PK_SupplierItems")
+  @@index([ItemId], map: "IX_SupplierItems_ItemId")
+  @@index([PurchaseUomId], map: "IX_SupplierItems_PurchaseUomId")
+}
+
+model Suppliers {
+  SupplierId               Int                        @id(map: "PK_Suppliers") @default(autoincrement())
+  CompanyName              String
+  ContactPerson            String
+  Email                    String
+  Phone                    String
+  IsActive                 Boolean
+  Address                  String                     @default("")
+  Website                  String?
+  SupplierCode             String                     @default("")
+  BatchConsumptions        BatchConsumptions[]
+  Deliveries               Deliveries[]
+  GoodsReceipts            GoodsReceipts[]
+  InventoryLots            InventoryLots[]
+  NonConformanceReports    NonConformanceReports[]
+  PurchaseOrderItems       PurchaseOrderItems[]
+  PurchaseOrders           PurchaseOrders[]
+  PurchaseRequisitionItems PurchaseRequisitionItems[]
+  ReturnToVendors          ReturnToVendors[]
+  SupplierDocuments        SupplierDocuments[]
+  SupplierItems            SupplierItems[]
+}
+
+model UnitOfMeasures {
+  UomId                                  Int                        @id(map: "PK_UnitOfMeasures") @default(autoincrement())
+  Name                                   String
+  Abbreviation                           String
+  BaseUomId                              Int?
+  Code                                   String                     @unique(map: "IX_UnitOfMeasures_Code") @default("")
+  ConversionFactor                       Decimal                    @default(1.0) @db.Decimal(18, 9)
+  IsBaseUnit                             Boolean                    @default(false)
+  UomType                                String                     @default("")
+  BatchConsumptions                      BatchConsumptions[]
+  DeliveryItems                          DeliveryItems[]
+  GoodsReceiptItems                      GoodsReceiptItems[]
+  InventoryLots                          InventoryLots[]
+  Items_Items_StockUomIdToUnitOfMeasures Items[]                    @relation("Items_StockUomIdToUnitOfMeasures")
+  Items_Items_UomIdToUnitOfMeasures      Items[]                    @relation("Items_UomIdToUnitOfMeasures")
+  LossReports                            LossReports[]
+  PurchaseOrderItems                     PurchaseOrderItems[]
+  PurchaseRequisitionItems               PurchaseRequisitionItems[]
+  PutAwayTransactions                    PutAwayTransactions[]
+  RecipeIngredients                      RecipeIngredients[]
+  Recipes                                Recipes[]
+  StockInLines                           StockInLines[]
+  SupplierItems                          SupplierItems[]
+  UnitOfMeasures                         UnitOfMeasures?            @relation("UnitOfMeasuresToUnitOfMeasures", fields: [BaseUomId], references: [UomId], onDelete: Restrict, onUpdate: NoAction, map: "FK_UnitOfMeasures_UnitOfMeasures_BaseUomId")
+  other_UnitOfMeasures                   UnitOfMeasures[]           @relation("UnitOfMeasuresToUnitOfMeasures")
+
+  @@index([BaseUomId], map: "IX_UnitOfMeasures_BaseUomId")
+}
+
+model EFMigrationsHistory {
+  MigrationId    String @id(map: "PK___EFMigrationsHistory") @db.VarChar(150)
+  ProductVersion String @db.VarChar(32)
+
+  @@map("__EFMigrationsHistory")
+}

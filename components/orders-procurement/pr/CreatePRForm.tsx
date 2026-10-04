@@ -12,6 +12,7 @@ import api from "@/lib/api";
 import { PurchaseRequisition, PRItem } from "../types";
 import { useAuth } from "@/context/AuthContext";
 import ConfirmModal from "@/components/ConfirmModal";
+import { HR_EMPLOYEES } from "@/lib/employees";
 
 export interface CreatePRModalProps {
   open: boolean;
@@ -174,9 +175,9 @@ export function CreatePRModal({
       try {
         setLoadingSupplies(true);
         const [itemsRes, invRes, prRes] = await Promise.allSettled([
-          api.get("/api/scms/api/Items?page=1&pageSize=1000"),
-          api.get("/api/scms/api/Inventories?page=1&pageSize=1000"),
-          api.get("/api/scms/api/PurchaseRequisitions"),
+          api.get("/api/items"),
+          api.get("/api/inventory?page=1&pageSize=1000"),
+          api.get("/api/purchase-requisitions"),
         ]);
 
         let rawItems: any[] = [];
@@ -371,9 +372,9 @@ export function CreatePRModal({
       };
 
       if (isEdit && initialData?.prId) {
-        await api.put(`/api/scms/api/PurchaseRequisitions/${initialData.prId}`, payload);
+        await api.put(`/api/purchase-requisitions/${initialData.prId}`, payload);
       } else {
-        await api.post("/api/scms/api/PurchaseRequisitions", payload);
+        await api.post("/api/purchase-requisitions", payload);
       }
 
       if (onSuccess) {
@@ -440,136 +441,7 @@ export function CreatePRModal({
                 {requestDate}
               </div>
             </div>
-
-          {/* Row 2: Requested By & Department (2 Columns) */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={`mb-1.5 block text-xs font-semibold ${errors.requestedBy ? "text-destructive" : "text-foreground"}`}>
-                Requested By <span className="text-destructive">*</span>
-              </label>
-              <Input
-                readOnly
-                value={requestedBy}
-                className={`w-full rounded-xl border ${
-                  errors.requestedBy ? "!border-destructive focus-visible:!ring-destructive" : "border-border"
-                } bg-muted/40 px-4 py-2.5 text-sm text-foreground cursor-not-allowed`}
-              />
-              {errors.requestedBy && (
-                <p className="mt-1.5 text-xs font-medium text-destructive animate-in fade-in-50">{errors.requestedBy}</p>
-              )}
-            </div>
-            <div>
-              <label className={`mb-1.5 block text-xs font-semibold ${errors.department ? "text-destructive" : "text-foreground"}`}>
-                Department <span className="text-destructive">*</span>
-              </label>
-              <Input
-                readOnly
-                value={department}
-                className={`w-full rounded-xl border ${
-                  errors.department ? "!border-destructive focus-visible:!ring-destructive" : "border-border"
-                } bg-muted/40 px-3 py-2 text-sm text-foreground cursor-not-allowed`}
-              />
-              {errors.department && (
-                <p className="mt-1.5 text-xs font-medium text-destructive animate-in fade-in-50">{errors.department}</p>
-              )}
-            </div>
           </div>
-
-          {/* Row 3: Request Type & Priority (2 Columns) */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={`mb-1.5 block text-xs font-semibold ${errors.requestType ? "text-destructive" : "text-foreground"}`}>
-                Request Type <span className="text-destructive">*</span>
-              </label>
-              <select
-                value={requestType}
-                onChange={(e) => {
-                  setRequestType(e.target.value);
-                  setErrors((prev) => {
-                    const c = { ...prev };
-                    delete c.requestType;
-                    return c;
-                  });
-                }}
-                className={`w-full rounded-xl border ${
-                  errors.requestType ? "!border-destructive focus-visible:!ring-destructive" : "border-border"
-                } bg-card px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
-                  requestType ? "text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                <option value="">Select request type...</option>
-                <option value="Stock Replenishment" className="text-foreground">Stock Replenishment</option>
-                <option value="Emergency Restock" className="text-foreground">Emergency Restock</option>
-                <option value="Production Run" className="text-foreground">Production Run</option>
-                <option value="Trial / New Product" className="text-foreground">Trial / New Product</option>
-                <option value="Other" className="text-foreground">Other</option>
-              </select>
-              {errors.requestType && (
-                <p className="mt-1.5 text-xs font-medium text-destructive animate-in fade-in-50">{errors.requestType}</p>
-              )}
-            </div>
-            <div>
-              <label className={`mb-1.5 block text-xs font-semibold ${errors.priority ? "text-destructive" : "text-foreground"}`}>
-                Priority <span className="text-destructive">*</span>
-              </label>
-              <select
-                value={priority}
-                onChange={(e) => {
-                  setPriority(e.target.value);
-                  setErrors((prev) => {
-                    const c = { ...prev };
-                    delete c.priority;
-                    return c;
-                  });
-                }}
-                className={`w-full rounded-xl border ${
-                  errors.priority ? "!border-destructive focus-visible:!ring-destructive" : "border-border"
-                } bg-card px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring ${
-                  priority ? "text-foreground" : "text-muted-foreground"
-                }`}
-              >
-                <option value="">Select priority...</option>
-                <option value="Normal" className="text-foreground">Normal</option>
-                <option value="Low" className="text-foreground">Low</option>
-                <option value="High" className="text-foreground">High</option>
-                <option value="Urgent" className="text-foreground">Urgent</option>
-              </select>
-              {errors.priority && (
-                <p className="mt-1.5 text-xs font-medium text-destructive animate-in fade-in-50">{errors.priority}</p>
-              )}
-            </div>
-          </div>
-
-          {/* Row 4: Required Date & Requisition Status (2 Columns) */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className={`mb-1.5 block text-xs font-semibold ${errors.requiredDate ? "text-destructive" : "text-foreground"}`}>
-                Required Date <span className="text-destructive">*</span>
-              </label>
-              <div className="relative">
-                <Input
-                  type="date"
-                  min={new Date().toISOString().split("T")[0]}
-                  value={requiredDate}
-                  onChange={(e) => {
-                    setRequiredDate(e.target.value);
-                    setErrors((prev) => {
-                      const c = { ...prev };
-                      delete c.requiredDate;
-                      return c;
-                    });
-                  }}
-                  className={`w-full h-10 rounded-xl border ${
-                    errors.requiredDate ? "!border-destructive focus-visible:!ring-destructive" : "border-border"
-                  } bg-card px-3.5 py-2 pr-10 text-xs text-foreground transition-colors cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer`}
-                />
-                <Calendar className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-              </div>
-              {errors.requiredDate && (
-                <p className="mt-1 text-[11px] font-medium text-destructive animate-in fade-in-50">{errors.requiredDate}</p>
-              )}
-            </div>
-
             {/* Requested By */}
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-foreground">
@@ -698,6 +570,49 @@ export function CreatePRModal({
               {errors.priority && (
                 <p className="mt-1 text-[11px] font-medium text-destructive animate-in fade-in-50">{errors.priority}</p>
               )}
+            </div>
+
+            {/* Required Date */}
+            <div>
+              <label className={`mb-1.5 block text-xs font-semibold ${errors.requiredDate ? "text-destructive" : "text-foreground"}`}>
+                Required Date <span className="text-destructive">*</span>
+              </label>
+              <div className="relative">
+                <Input
+                  type="date"
+                  min={new Date().toISOString().split("T")[0]}
+                  value={requiredDate}
+                  onChange={(e) => {
+                    setRequiredDate(e.target.value);
+                    setErrors((prev) => {
+                      const c = { ...prev };
+                      delete c.requiredDate;
+                      return c;
+                    });
+                  }}
+                  className={`w-full h-10 rounded-xl border ${
+                    errors.requiredDate ? "!border-destructive focus-visible:!ring-destructive" : "border-border"
+                  } bg-card px-3.5 py-2 pr-10 text-xs text-foreground transition-colors cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:cursor-pointer`}
+                />
+                <Calendar className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              </div>
+              {errors.requiredDate && (
+                <p className="mt-1 text-[11px] font-medium text-destructive animate-in fade-in-50">{errors.requiredDate}</p>
+              )}
+            </div>
+
+            {/* Status (Read-Only) */}
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold text-foreground">Status</label>
+              <div className="flex items-center h-10 px-3.5 rounded-xl border border-border bg-muted/40 text-xs font-medium text-foreground">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider ${
+                  statusText === "Approved" ? "bg-emerald-500/10 text-emerald-600" :
+                  statusText === "Rejected" ? "bg-rose-500/10 text-rose-600" :
+                  "bg-amber-500/10 text-amber-600"
+                }`}>
+                  {statusText}
+                </span>
+              </div>
             </div>
           </div>
 
@@ -920,7 +835,7 @@ export function CreatePRModal({
               Submit for Approval
             </Button>
           </div>
-        </div>
+
       </ModalWrapper>
 
       {/* Review Modal for Submit/Draft */}
