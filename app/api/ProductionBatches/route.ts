@@ -126,7 +126,7 @@ export async function POST(request: Request) {
         ScrapQuantity: 0,
         // Pre-populate BatchConsumptions from recipe ingredients
         BatchConsumptions: {
-          create: recipe.RecipeIngredients.map((ing) => ({
+          create: recipe.RecipeIngredients.map((ing: any) => ({
             ItemId: ing.ItemId,
             RequiredQuantity: Number(ing.StandardQuantity) * multiplier,
             QuantityUsed: 0,
