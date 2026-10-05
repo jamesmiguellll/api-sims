@@ -57,11 +57,7 @@ jobs:
           NEXT_PUBLIC_CRMS_URL: http://localhost:3005
           NODE_TLS_REJECT_UNAUTHORIZED: 0
 
-      - name: Build Docker
-        run: docker build -t ${{ inputs.name }} .
 
-      - name: Run Docker container
-        run: docker run -d --name ${{ inputs.name }} -p ${{ inputs.port }}:${{ inputs.port }} ${{ inputs.name }}
 
       - name: Run tests
         run: npm test --if-present
