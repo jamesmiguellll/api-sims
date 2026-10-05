@@ -15,7 +15,7 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       return NextResponse.json({ success: false, message: "QA inspection not found." }, { status: 404 });
     }
 
-    const updatedInspection = await prisma.$transaction(async (tx) => {
+    const updatedInspection = await prisma.$transaction(async (tx: typeof prisma) => {
       // 1. Update main inspection record
       const inspection = await tx.qualityInspections.update({
         where: { InspectionId: id },
