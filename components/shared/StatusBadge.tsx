@@ -27,6 +27,9 @@ const STATUS_MAP: Record<string, BadgeTier> = {
   // Production / QA
   Completed:     "active",
   Released:      "active",
+  "Materials Issued": "active",
+  "Ready for Production": "active",
+  "In Production": "subtle",
   InProgress:    "subtle",
   "In Progress": "subtle",
   Quarantine:    "subtle",

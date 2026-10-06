@@ -24,8 +24,8 @@ export async function GET() {
     });
 
     const responseData = recipes.map(recipe => {
-      const unit = recipe.Product?.Items?.Uom?.Abbreviation;
-      const yieldLabel = !unit || unit.trim() === "" ? "Good for 1" : `Good for 1 ${unit}`;
+      const outputQty = Number(recipe.OutputQuantity) > 0 ? Number(recipe.OutputQuantity) : 100;
+      const yieldLabel = `Batch of ${outputQty} pcs`;
 
       return {
         recipeId: recipe.RecipeId,
@@ -34,7 +34,7 @@ export async function GET() {
         displayName: `${recipe.RecipeName} — ${yieldLabel}`,
         yieldLabel: yieldLabel,
         productId: recipe.ProductId,
-        outputQuantity: 1, // GoodForOneYield
+        outputQuantity: outputQty,
         notes: recipe.Notes,
         isActive: recipe.IsActive,
         ingredients: recipe.RecipeIngredients.map(i => ({
@@ -81,8 +81,9 @@ export async function POST(request: Request) {
         include: { UnitOfMeasures_Items_StockUomIdToUnitOfMeasures: true, Category: true }
       });
       if (!item) return NextResponse.json({ success: false, message: `Item with ID ${ing.itemId} not found.` }, { status: 400 });
-      if (item.Category?.CategoryName?.toLowerCase() !== "ingredients") {
-        return NextResponse.json({ success: false, message: `'${item.ItemName}' must be classified under Ingredients before it can be used in a recipe.` }, { status: 400 });
+      const catName = item.Category?.CategoryName?.toLowerCase() || "";
+      if (catName.includes("finished good")) {
+        return NextResponse.json({ success: false, message: `'${item.ItemName}' is a finished product and cannot be used as a raw material.` }, { status: 400 });
       }
 
       if (ing.uomId !== item.StockUomId) {
@@ -114,12 +115,14 @@ export async function POST(request: Request) {
     });
     const recipeCode = `BOM-${year}-${String(seq.LastNumber).padStart(4, '0')}`;
 
+    const outputQty = Number(body.outputQuantity) > 0 ? Number(body.outputQuantity) : 100;
+
     const newRecipe = await prisma.recipes.create({
       data: {
         RecipeCode: recipeCode,
         RecipeName: normalizedName,
         ProductId: body.productId,
-        OutputQuantity: 1, // GoodForOneYield
+        OutputQuantity: outputQty,
         Notes: body.notes || "",
         IsActive: body.isActive ?? true,
         RecipeIngredients: {
@@ -140,8 +143,7 @@ export async function POST(request: Request) {
       }
     });
 
-    const unit = newRecipe.Product?.Items?.Uom?.Abbreviation;
-    const yieldLabel = !unit || unit.trim() === "" ? "Good for 1" : `Good for 1 ${unit}`;
+    const yieldLabel = `Batch of ${outputQty} pcs`;
 
     const response = {
       recipeId: newRecipe.RecipeId,
@@ -150,7 +152,7 @@ export async function POST(request: Request) {
       displayName: `${newRecipe.RecipeName} — ${yieldLabel}`,
       yieldLabel: yieldLabel,
       productId: newRecipe.ProductId,
-      outputQuantity: 1,
+      outputQuantity: outputQty,
       notes: newRecipe.Notes,
       isActive: newRecipe.IsActive,
       ingredients: newRecipe.RecipeIngredients.map(i => ({

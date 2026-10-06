@@ -3,12 +3,11 @@
 import React, { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { PageHeader } from "@/components/shared/PageHeader";
-import ProductionRequestTab from "@/components/production/ProductionRequestTab";
+import ProductionRequestsTab from "@/components/production/ProductionRequestsTab";
+import MaterialIssuanceTab from "@/components/production/MaterialIssuanceTab";
 import ProductionTrackingTab from "@/components/production/ProductionTrackingTab";
 import ConfigurationTab from "@/components/production/ConfigurationTab";
 import LossTab from "@/components/production/LossTab";
-
-type ProductionTab = "request" | "tracking" | "configuration" | "loss";
 
 export default function ProductionPage() {
   const { user, activeAccount } = useAuth();
@@ -34,82 +33,138 @@ export default function ProductionPage() {
     user?.roles?.includes("Admin")
   );
 
-  const [activeMainTab, setActiveMainTab] = useState<ProductionTab>("request");
+  // Default active tab based on role
+  const [activeTab, setActiveTab] = useState<string>("requests");
+
+  // Cross-tab state
+  const [targetIssuanceId, setTargetIssuanceId] = useState<number | null>(null);
   const [trackingBatchId, setTrackingBatchId] = useState<number | null>(null);
 
-  const handleNavigateToTracking = (batchId: number) => {
-    setTrackingBatchId(batchId);
-    setActiveMainTab("tracking");
+  // Navigate from Production Requests -> Material Issuance
+  const handleNavigateToIssuance = async (prodReqId?: number) => {
+    if (prodReqId) {
+      try {
+        // Initialize or load issuance for this request
+        const res = await fetch("/api/material-issuances", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prodReqId, issuedBy: user?.username || "Inventory Manager" }),
+        });
+        const data = await res.json();
+        if (data?.success && data?.data) {
+          setTargetIssuanceId(data.data.issuanceId);
+        }
+      } catch (err) {
+        console.error("Failed to auto-open issuance session:", err);
+      }
+    }
+    setActiveTab("issuance");
   };
 
-  // Main Tabs Definition
-  const mainTabs = [
-    { key: "request", label: "Production Request" },
-    { key: "tracking", label: "Production Tracking" },
-    { key: "configuration", label: "Configuration" },
-    { key: "loss", label: "Loss" },
-  ];
+  // Navigate from Production Requests (Start Batch) -> Production Tracking
+  const handleStartBatchAndTrack = (batchId: number) => {
+    setTrackingBatchId(batchId);
+    setActiveTab("tracking");
+  };
+
+  // Define tabs based on role - NO MORE ready for production page!
+  let tabs: Array<{ key: string; label: string }> = [];
+
+  if (isInventoryManager && !isAdmin) {
+    tabs = [
+      { key: "requests", label: "Production Requests" },
+      { key: "issuance", label: "Material Issuance" },
+      { key: "configuration", label: "Configuration" },
+    ];
+  } else if (isHeadCook && !isAdmin) {
+    tabs = [
+      { key: "requests", label: "Production Requests" },
+      { key: "tracking", label: "Production Tracking" },
+    ];
+  } else {
+    // Admin sees all
+    tabs = [
+      { key: "requests", label: "Production Requests" },
+      { key: "issuance", label: "Material Issuance" },
+      { key: "tracking", label: "Production Tracking" },
+      { key: "configuration", label: "Configuration" },
+      { key: "loss", label: "Loss" },
+    ];
+  }
+
+  // Ensure active tab is valid for current role
+  const isCurrentTabValid = tabs.some((t) => t.key === activeTab);
+  const currentTab = isCurrentTabValid ? activeTab : tabs[0]?.key || "requests";
 
   return (
     <div className="w-full min-h-full py-8 px-6 md:px-8 space-y-6 animate-page-in">
       <PageHeader
         title="Production & Quality"
         description={
-          isInventoryManager
-            ? "Inspect production material requisitions, verify suggested lots via QR scan, and issue supplies."
-            : "Authorized batch requests, sequential waterfall tracking, quality sensory assurance, and recipe configuration."
+          isInventoryManager && !isAdmin
+            ? "Create production requests with automated FIFO/FEFO lot reservations, scan raw materials, and issue supplies."
+            : isHeadCook && !isAdmin
+            ? "View ready for production requests, start authorized kitchen batches, track stage progression, and record finished goods."
+            : "End-to-end production management, material lot reservations, sequential stage tracking, and quality assurance."
         }
       />
 
-      {/* Main Process Tabs (Hidden for Inventory Manager since they only see Material Request & Issuance) */}
-      {!isInventoryManager ? (
-        <div className="border-b border-border">
-          <div className="flex items-center gap-2 overflow-x-auto">
-            {mainTabs.map((tab) => {
-              const isActive = activeMainTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setActiveMainTab(tab.key as ProductionTab)}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
-                    isActive
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <span>{tab.label.toUpperCase()}</span>
-                </button>
-              );
-            })}
-          </div>
+      {/* Main Tab Bar matching Resources & Suppliers styling */}
+      <div className="border-b border-border">
+        <div className="flex items-center gap-2 overflow-x-auto">
+          {tabs.map((tab) => {
+            const isActive = currentTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                  isActive
+                    ? "border-foreground text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span>{tab.label.toUpperCase()}</span>
+              </button>
+            );
+          })}
         </div>
-      ) : null}
+      </div>
 
-      {/* Tab 1: Production Request */}
-      {!isInventoryManager && activeMainTab === "request" && (
-        <ProductionRequestTab
+      {/* Tab 1: Production Requests (Base for Inventory Manager, Head Cook, and Admin) */}
+      {currentTab === "requests" && (
+        <ProductionRequestsTab
           isAdmin={isAdmin}
+          isInventoryManager={isInventoryManager || isAdmin}
           isHeadCook={isHeadCook}
-          onNavigateToTracking={handleNavigateToTracking}
+          onNavigateToIssuance={handleNavigateToIssuance}
+          onStartBatchAndTrack={handleStartBatchAndTrack}
+          currentUser={user?.username || (isHeadCook ? "Head Cook" : isInventoryManager ? "Inventory Manager" : "Admin")}
         />
       )}
 
-      {/* Tab 2: Production Tracking (or Inventory Manager's MR & Issuance View) */}
-      {(isInventoryManager || activeMainTab === "tracking") && (
+      {/* Tab 2: Material Issuance (Inventory Manager & Admin) */}
+      {currentTab === "issuance" && (
+        <MaterialIssuanceTab
+          initialIssuanceId={targetIssuanceId}
+        />
+      )}
+
+      {/* Tab 3: Production Tracking (Head Cook & Admin) */}
+      {currentTab === "tracking" && (
         <ProductionTrackingTab
-          initialSelectedBatchId={trackingBatchId}
-          isInventoryManager={isInventoryManager}
-          isHeadCook={isHeadCook}
-          onNavigateToRequest={() => setActiveMainTab("request")}
+          initialBatchId={trackingBatchId}
+          onNavigateToBatches={() => setActiveTab("requests")}
+          currentUser={user?.username || "Head Cook"}
         />
       )}
 
-      {/* Tab 3: Configuration */}
-      {!isInventoryManager && activeMainTab === "configuration" && <ConfigurationTab />}
+      {/* Tab 5: Configuration (Admin) */}
+      {currentTab === "configuration" && <ConfigurationTab />}
 
-      {/* Tab 4: Loss */}
-      {!isInventoryManager && activeMainTab === "loss" && <LossTab />}
+      {/* Tab 6: Loss (Admin) */}
+      {currentTab === "loss" && <LossTab />}
     </div>
   );
 }

@@ -7,6 +7,8 @@ export type InventoryItem = {
   locationId: number;
   locationName: string;
   currentStock: number;
+  reservedStock?: number;
+  availableStock?: number;
   minStockLevel: number;
   maxStockLevel: number;
   isLowStock: boolean;

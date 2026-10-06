@@ -7,11 +7,19 @@ export async function GET(request: Request, props: { params: Promise<{ itemId: s
     const itemId = parseInt(params.itemId, 10);
 
     const lots = await prisma.inventoryLots.findMany({
-      where: { ItemId: itemId, Status: "Available", QuantityRemaining: { gt: 0 } },
+      where: { ItemId: itemId, Status: { in: ["Available", "Active"] }, QuantityRemaining: { gt: 0 } },
       include: {
         Locations: true,
         Suppliers: true,
         UnitOfMeasures: true,
+        ProductionReqLotReservations: {
+          where: { IsReleased: false },
+          include: {
+            ProductionRequests: {
+              select: { ReqNumber: true, Status: true },
+            },
+          },
+        },
       },
       orderBy: [{ ExpiryDate: "asc" }, { LotId: "asc" }],
     });
@@ -22,6 +30,17 @@ export async function GET(request: Request, props: { params: Promise<{ itemId: s
       const daysToExpiry = expiryDate
         ? Math.ceil((new Date(expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
         : null;
+      const remaining = Number(lot.QuantityRemaining);
+      const reserved = Number(lot.ReservedQuantity || 0);
+      const available = Math.max(0, remaining - reserved);
+
+      const reservations = (lot.ProductionReqLotReservations || []).map((r) => ({
+        reservationId: r.ReservationId,
+        reqNumber: r.ProductionRequests?.ReqNumber || "",
+        reservedQuantity: Number(r.ReservedQuantity),
+        status: r.ProductionRequests?.Status || "",
+      }));
+
       return {
         lotId: lot.LotId,
         lotCode: lot.LotCode,
@@ -32,7 +51,10 @@ export async function GET(request: Request, props: { params: Promise<{ itemId: s
         supplierName: lot.Suppliers?.CompanyName ?? "",
         supplierLotNo: lot.SupplierLotNo ?? "",
         quantityReceived: Number(lot.QuantityReceived),
-        quantityRemaining: Number(lot.QuantityRemaining),
+        quantityRemaining: remaining,
+        reservedQuantity: reserved,
+        availableQuantity: available,
+        reservations,
         uomAbbreviation: lot.UnitOfMeasures?.Abbreviation ?? "",
         unitCost: Number(lot.UnitCost),
         status: lot.Status,

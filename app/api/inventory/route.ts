@@ -49,11 +49,30 @@ export async function GET(request: Request) {
       }),
     ]);
 
+    const itemIds = records.map((r) => r.ItemId);
+    const lotAggregations = await prisma.inventoryLots.groupBy({
+      by: ["ItemId"],
+      where: {
+        ItemId: { in: itemIds },
+        Status: { in: ["Available", "Active"] },
+      },
+      _sum: {
+        ReservedQuantity: true,
+      },
+    });
+
+    const reservedMap: Record<number, number> = {};
+    for (const agg of lotAggregations) {
+      reservedMap[agg.ItemId] = Number(agg._sum.ReservedQuantity || 0);
+    }
+
     const data = records.map((inv) => {
       const item = inv.Items;
       const location = inv.Locations;
       const uom = item.UnitOfMeasures_Items_StockUomIdToUnitOfMeasures ?? item.Uom;
       const currentStock = Number(inv.CurrentStock);
+      const reservedStock = reservedMap[item.ItemId] || 0;
+      const availableStock = Math.max(0, currentStock - reservedStock);
       const minStock = Number(item.MinStockLevel);
       const maxStock = Number(item.MaxStockLevel);
 
@@ -67,6 +86,8 @@ export async function GET(request: Request) {
         locationId: inv.LocationId,
         locationName: location?.LocationName ?? "",
         currentStock,
+        reservedStock,
+        availableStock,
         minStockLevel: minStock,
         maxStockLevel: maxStock,
         uomId: uom?.UomId ?? item.StockUomId,

@@ -190,8 +190,12 @@ export default function ResourcesSuppliersPage() {
   const handleSaveRecipe = async (data: any) => {
     try {
       const payload = {
-        recipeName: data.recipeName, productId: data.productId,
-        notes: data.notes, isActive: data.isActive, ingredients: data.ingredients,
+        recipeName: data.recipeName,
+        productId: data.productId,
+        outputQuantity: data.outputQuantity,
+        notes: data.notes,
+        isActive: data.isActive,
+        ingredients: data.ingredients,
       };
       if (editingRecipe) await api.put(`/api/recipes/${editingRecipe.recipeId}`, payload);
       else await api.post("/api/recipes", payload);
@@ -287,7 +291,7 @@ export default function ResourcesSuppliersPage() {
       />
       <SupplierModal open={openSupplierModal} editingSupplier={editingSupplier} onClose={() => { setOpenSupplierModal(false); setEditingSupplier(null); }} onSave={handleSaveSupplier} />
       <SupplierDetailsModal supplier={viewSupplier} onClose={() => setViewSupplier(null)} />
-      <RecipeModal open={openRecipeModal} editingRecipe={editingRecipe} finishedProducts={finishedProductData} baseSupplies={supplyData.filter((item) => item.categoryName === "Ingredients")} onClose={() => { setOpenRecipeModal(false); setEditingRecipe(null); }} onSave={handleSaveRecipe} />
+      <RecipeModal open={openRecipeModal} editingRecipe={editingRecipe} finishedProducts={finishedProductData} baseSupplies={supplyData} onClose={() => { setOpenRecipeModal(false); setEditingRecipe(null); }} onSave={handleSaveRecipe} />
     </div>
   );
 }

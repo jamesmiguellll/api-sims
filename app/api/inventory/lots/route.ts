@@ -13,7 +13,11 @@ export async function GET(request: Request) {
     const where: any = {};
 
     if (status) {
-      where.Status = status;
+      if (status === "Reserved") {
+        where.ReservedQuantity = { gt: 0 };
+      } else {
+        where.Status = status;
+      }
     }
 
     if (itemId) {
@@ -41,6 +45,14 @@ export async function GET(request: Request) {
           Locations: true,
           Suppliers: true,
           UnitOfMeasures: true,
+          ProductionReqLotReservations: {
+            where: { IsReleased: false },
+            include: {
+              ProductionRequests: {
+                select: { ReqNumber: true, Status: true },
+              },
+            },
+          },
         },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -57,6 +69,16 @@ export async function GET(request: Request) {
         ? Math.ceil((new Date(expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
         : null;
 
+      const remaining = Number(lot.QuantityRemaining);
+      const reserved = Number(lot.ReservedQuantity || 0);
+      const available = Math.max(0, remaining - reserved);
+      const reservations = (lot.ProductionReqLotReservations || []).map((r) => ({
+        reservationId: r.ReservationId,
+        reqNumber: r.ProductionRequests?.ReqNumber || "",
+        reservedQuantity: Number(r.ReservedQuantity),
+        status: r.ProductionRequests?.Status || "",
+      }));
+
       return {
         lotId: lot.LotId,
         lotCode: lot.LotCode,
@@ -71,7 +93,10 @@ export async function GET(request: Request) {
         supplierLotNo: lot.SupplierLotNo ?? "",
         sourceType: lot.SourceType,
         quantityReceived: Number(lot.QuantityReceived),
-        quantityRemaining: Number(lot.QuantityRemaining),
+        quantityRemaining: remaining,
+        reservedQuantity: reserved,
+        availableQuantity: available,
+        reservations,
         uomId: uom?.UomId ?? null,
         uomAbbreviation: uom?.Abbreviation ?? "",
         unitCost: Number(lot.UnitCost),

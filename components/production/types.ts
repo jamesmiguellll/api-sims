@@ -19,6 +19,269 @@ export interface ConfigProduct {
   variations: ConfigVariation[];
 }
 
+export interface LossItemDetail {
+  itemName: string;
+  lotNumber: string;
+  quantity: number;
+  uom: string;
+  unitCost: number;
+  totalCost: number;
+}
+
+export interface LossReport {
+  lossId: string;
+  batchId: number;
+  batchNumber: string;
+  productName: string;
+  variant: string;
+  targetYield: number;
+  failureStage: string;
+  date: string;
+  rejectionReason: string;
+  inspector: string;
+  notes: string;
+  totalEstimatedLoss: number;
+  items: LossItemDetail[];
+}
+
+// ── NEW PRODUCTION SYSTEM ENTITIES ──────────────────────────────────────────
+
+export interface RecipeIngredientDTO {
+  ingredientId: number;
+  itemId: number;
+  itemName: string;
+  itemCode: string;
+  standardQuantity: number;
+  uomId: number;
+  uomAbbr: string;
+}
+
+export interface LotReservationDTO {
+  reservationId: number;
+  ingredientId: number;
+  itemId: number;
+  itemName: string;
+  itemCode?: string;
+  lotId: number;
+  lotCode: string;
+  reservedQuantity: number;
+  isReleased: boolean;
+  releasedAt: string | null;
+  expiryDate: string | null;
+  quantityRemaining: number;
+}
+
+export interface IssuanceScanDTO {
+  scanId: number;
+  ingredientId: number;
+  itemId: number;
+  lotId: number;
+  lotCode: string;
+  scannedAt: string | null;
+  scannedBy: string;
+  isVerified: boolean;
+}
+
+export interface MaterialIssuanceDTO {
+  issuanceId: number;
+  issuanceNumber: string;
+  prodReqId: number;
+  reqNumber: string;
+  productName: string;
+  productCode: string;
+  sku: string;
+  recipeName: string;
+  requestQuantity: number;
+  priority: string;
+  issuedBy: string;
+  issuedAt: string | null;
+  status: "Pending" | "Scanning" | "Issued" | "Cancelled";
+  reqStatus: string;
+  scans: IssuanceScanDTO[];
+  reservations: LotReservationDTO[];
+}
+
+export interface ProductionRequestEntity {
+  prodReqId: number;
+  reqNumber: string;
+  productId: number;
+  productName: string;
+  productCode: string;
+  sku: string;
+  variant: string;
+  recipeId: number;
+  recipeName: string;
+  recipeCode: string;
+  recipeOutputQty: number;
+  yieldUom: string;
+  quantity: number;
+  reason: string;
+  priority: "Low" | "Medium" | "High" | "Normal" | "Priority" | string;
+  requiredDate: string | null;
+  requiredTime: string;
+  requestedBy: string;
+  status:
+    | "Pending Approval"
+    | "Approved"
+    | "Rejected"
+    | "Materials Issued"
+    | "Ready for Production"
+    | "In Production"
+    | "In Progress"
+    | "Completed";
+  linkedPrId: number | null;
+  linkedPrNumber: string | null;
+  adminNotes: string;
+  approvedBy: string;
+  approvedAt: string | null;
+  rejectedBy: string;
+  rejectedAt: string | null;
+  rejectionReason: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+  recipeIngredients: RecipeIngredientDTO[];
+  reservations: LotReservationDTO[];
+  issuances: MaterialIssuanceDTO[];
+  batches: Array<{
+    batchId: number;
+    batchNumber: string;
+    status: string;
+    stage: string;
+    currentStage: string;
+    estimatedQuantity: number;
+    actualQuantity: number;
+    productionDate: string | null;
+    startedAt: string | null;
+    completedDate: string | null;
+  }>;
+}
+
+export interface LotSuggestionItem {
+  lotId: number;
+  lotCode: string;
+  quantityRemaining: number;
+  reservedQuantity: number;
+  availableQuantity: number;
+  suggestedQuantity: number;
+  expiryDate: string | null;
+  receivedDate: string | null;
+  status: string;
+}
+
+export interface IngredientLotSuggestion {
+  ingredientId: number;
+  itemId: number;
+  itemName: string;
+  itemCode: string;
+  uomId: number;
+  uomAbbr: string;
+  standardQuantity: number;
+  requiredQuantity: number;
+  totalAvailable: number;
+  shortfallQuantity: number;
+  hasShortfall: boolean;
+  lots: LotSuggestionItem[];
+}
+
+export interface LotSuggestionsResponse {
+  recipeId: number;
+  recipeName: string;
+  quantity: number;
+  multiplier: number;
+  hasAnyShortfall: boolean;
+  ingredients: IngredientLotSuggestion[];
+}
+
+export interface BatchConsumptionDTO {
+  consumptionId: number;
+  itemId: number;
+  itemName: string;
+  requiredQuantity: number;
+  quantityUsed: number;
+  uomId: number | null;
+  uomAbbr: string;
+  lotId: number | null;
+  lotCode: string;
+  unitCost: number;
+}
+
+export interface ProductionBatchEntity {
+  batchId: number;
+  batchNumber: string;
+  prodReqId: number | null;
+  reqNumber: string;
+  productId: number;
+  productName: string;
+  productCode: string;
+  variant: string;
+  sku: string;
+  recipeId: number;
+  recipeName: string;
+  recipeCode: string;
+  yieldUom: string;
+  batchMultiplier: number;
+  estimatedQuantity: number;
+  actualQuantity: number;
+  scrapQuantity: number;
+  scrapReason: string;
+  productionDate: string | null;
+  startedAt: string | null;
+  completedDate: string | null;
+  packagedAt: string | null;
+  packagedBy: string;
+  expiryDate: string | null;
+  stage: string;
+  currentStage: string;
+  qualityStatus: string;
+  rejectionReason: string;
+  notes: string;
+  purpose: string;
+  status: string;
+  assignedCook: string;
+  fgLotId: number | null;
+  totalMaterialCost: number;
+  unitCost: number;
+  yieldPercentage: number;
+  consumptions: BatchConsumptionDTO[];
+}
+
+// ── LEGACY COMPATIBILITY TYPES ──────────────────────────────────────────────
+
+export interface FinishedProductItem {
+  productId: number;
+  itemId: number;
+  itemName: string;
+  sellingPrice: number;
+  sku: string;
+  variant: string;
+  imageUrl?: string;
+}
+
+export interface ProductionBatchItem {
+  batchId: number;
+  batchNumber: string;
+  recipeId: number;
+  recipeName: string;
+  productId: number;
+  productName: string;
+  variant: string;
+  purpose: string;
+  batchMultiplier: number;
+  estimatedQuantity: number;
+  actualQuantity: number;
+  scrapQuantity: number;
+  scrapReason?: string;
+  fgLotId?: number;
+  productionDate: string;
+  stage: string;
+  status: string;
+  assignedCook: string;
+  qualityStatus: string;
+  rejectionReason: string;
+  imageUrl: string;
+  notes: string;
+}
+
 export interface MaterialRequestItem {
   ingredientId: number;
   itemId: number;
@@ -132,41 +395,6 @@ export interface ProductionSummaryReport {
   };
 }
 
-export interface FinishedProductItem {
-  productId: number;
-  itemId: number;
-  itemName: string;
-  sellingPrice: number;
-  sku: string;
-  variant: string;
-  imageUrl?: string;
-}
-
-export interface ProductionBatchItem {
-  batchId: number;
-  batchNumber: string;
-  recipeId: number;
-  recipeName: string;
-  productId: number;
-  productName: string;
-  variant: string;
-  purpose: string;
-  batchMultiplier: number;
-  estimatedQuantity: number;
-  actualQuantity: number;
-  scrapQuantity: number;
-  scrapReason?: string;
-  fgLotId?: number;
-  productionDate: string;
-  stage: string;
-  status: string;
-  assignedCook: string;
-  qualityStatus: string;
-  rejectionReason: string;
-  imageUrl: string;
-  notes: string;
-}
-
 export interface ProductionRequest {
   batchId: number;
   batchNumber: string;
@@ -212,29 +440,4 @@ export interface ProductionRequest {
   qaChecklist?: QAChecklist;
   packagingData?: PackagingData;
   summaryReport?: ProductionSummaryReport;
-}
-
-export interface LossItemDetail {
-  itemName: string;
-  lotNumber: string;
-  quantity: number;
-  uom: string;
-  unitCost: number;
-  totalCost: number;
-}
-
-export interface LossReport {
-  lossId: string;
-  batchId: number;
-  batchNumber: string;
-  productName: string;
-  variant: string;
-  targetYield: number;
-  failureStage: string;
-  date: string;
-  rejectionReason: string;
-  inspector: string;
-  notes: string;
-  totalEstimatedLoss: number;
-  items: LossItemDetail[];
 }

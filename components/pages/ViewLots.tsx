@@ -44,7 +44,7 @@ export default function ViewLots() {
   useEffect(() => {
     const fetchCounts = async () => {
       try {
-        const statuses = ["Available", "Quarantine", "OnHold"];
+        const statuses = ["Available", "Reserved", "Quarantine", "OnHold"];
         const counts: Record<string, number> = { all: 0 };
         await Promise.all(
           statuses.map(async (status) => {
@@ -76,8 +76,8 @@ export default function ViewLots() {
         </div>
       </div>
 
-      {/* Summary cards would go here - simplified for now */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Summary cards with Reserved Lots */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="rounded-2xl border border-border bg-card p-5">
           <div className="text-sm text-muted-foreground">Total Lots</div>
           <div className="text-2xl font-bold text-foreground mt-1">{totalCount}</div>
@@ -85,7 +85,13 @@ export default function ViewLots() {
         <div className="rounded-2xl border border-border bg-card p-5">
           <div className="text-sm text-muted-foreground">Available</div>
           <div className="text-2xl font-bold text-foreground mt-1">
-            {lots.filter(l => l.status === "Available").length}
+            {lots.filter(l => l.status === "Available" && !(l.reservedQuantity && l.reservedQuantity >= l.quantityRemaining)).length}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <div className="text-sm text-muted-foreground">Reserved</div>
+          <div className="text-2xl font-bold text-foreground mt-1">
+            {lots.filter(l => Boolean(l.reservedQuantity && l.reservedQuantity > 0)).length}
           </div>
         </div>
         <div className="rounded-2xl border border-border bg-card p-5">
@@ -110,6 +116,7 @@ export default function ViewLots() {
           {[
             { id: "all", label: "ALL LOTS" },
             { id: "Available", label: "AVAILABLE" },
+            { id: "Reserved", label: "RESERVED" },
             { id: "Quarantine", label: "QUARANTINE" },
             { id: "OnHold", label: "ON HOLD" },
           ].map((tab) => {

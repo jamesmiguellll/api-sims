@@ -21,8 +21,8 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     return NextResponse.json({ success: false, message: `Recipe with ID ${id} not found.` }, { status: 404 });
   }
 
-  const unit = recipe.Product.Items.Uom.Abbreviation;
-  const yieldLabel = unit?.trim() ? `Good for 1 ${unit}` : "Good for 1";
+  const outputQty = Number(recipe.OutputQuantity) > 0 ? Number(recipe.OutputQuantity) : 100;
+  const yieldLabel = `Batch of ${outputQty} pcs`;
 
   return NextResponse.json({
     success: true,
@@ -33,7 +33,7 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
       displayName: `${recipe.RecipeName} — ${yieldLabel}`,
       yieldLabel,
       productId: recipe.ProductId,
-      outputQuantity: 1,
+      outputQuantity: outputQty,
       notes: recipe.Notes,
       isActive: recipe.IsActive,
       ingredients: recipe.RecipeIngredients.map((ingredient) => ({
@@ -89,8 +89,9 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
           include: { UnitOfMeasures_Items_StockUomIdToUnitOfMeasures: true, Category: true }
         });
         if (!item) return NextResponse.json({ success: false, message: `Ingredient Item with ID ${ing.itemId} does not exist.` }, { status: 400 });
-        if (item.Category?.CategoryName?.toLowerCase() !== "ingredients") {
-          return NextResponse.json({ success: false, message: `'${item.ItemName}' must be classified under Ingredients before it can be used in a recipe.` }, { status: 400 });
+        const catName = item.Category?.CategoryName?.toLowerCase() || "";
+        if (catName.includes("finished good")) {
+          return NextResponse.json({ success: false, message: `'${item.ItemName}' is a finished product and cannot be used as a raw material.` }, { status: 400 });
         }
 
         const uom = await prisma.unitOfMeasures.findUnique({ where: { UomId: ing.uomId } });
@@ -138,13 +139,18 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
       }
     }
 
+    const outputQty = body.outputQuantity !== undefined
+      ? (Number(body.outputQuantity) > 0 ? Number(body.outputQuantity) : 100)
+      : (Number(recipe.OutputQuantity) > 0 ? Number(recipe.OutputQuantity) : 100);
+
     const updatedRecipe = await prisma.recipes.update({
       where: { RecipeId: id },
       data: {
         RecipeName: normalizedName,
+        ProductId: body.productId !== undefined ? Number(body.productId) : undefined,
         Notes: body.notes !== undefined ? body.notes : undefined,
         IsActive: body.isActive !== undefined ? body.isActive : undefined,
-        OutputQuantity: 1, // GoodForOneYield
+        OutputQuantity: outputQty,
       },
       include: {
         RecipeIngredients: { include: { Items: true, Uom: true } },
@@ -152,8 +158,7 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
       }
     });
 
-    const unit = updatedRecipe.Product?.Items?.Uom?.Abbreviation;
-    const yieldLabel = !unit || unit.trim() === "" ? "Good for 1" : `Good for 1 ${unit}`;
+    const yieldLabel = `Batch of ${outputQty} pcs`;
 
     const response = {
       recipeId: updatedRecipe.RecipeId,
@@ -162,7 +167,7 @@ export async function PUT(request: Request, props: { params: Promise<{ id: strin
       displayName: `${updatedRecipe.RecipeName} — ${yieldLabel}`,
       yieldLabel: yieldLabel,
       productId: updatedRecipe.ProductId,
-      outputQuantity: 1,
+      outputQuantity: outputQty,
       notes: updatedRecipe.Notes,
       isActive: updatedRecipe.IsActive,
       ingredients: updatedRecipe.RecipeIngredients.map(i => ({

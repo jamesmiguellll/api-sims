@@ -135,7 +135,7 @@ export default function ProductionSummaryModal({
                       </td>
                     </tr>
                   ) : (
-                    report.materialsUsed.map((m, idx) => (
+                    report.materialsUsed.map((m: any, idx: number) => (
                       <tr key={idx} className="hover:bg-muted/10">
                         <td className="py-2 px-3 font-semibold text-foreground">{m.itemName}</td>
                         <td className="py-2 px-3 text-muted-foreground">{m.supplierName || "Default Supplier"}</td>
@@ -160,7 +160,7 @@ export default function ProductionSummaryModal({
               <Clock size={13} className="text-foreground" /> Production Stages Execution
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {report.stageLogs.map((log) => (
+              {report.stageLogs.map((log: any) => (
                 <div
                   key={log.stageName}
                   className="rounded-xl border border-border bg-card p-3 space-y-2 text-xs"

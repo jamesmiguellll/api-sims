@@ -36,28 +36,40 @@ export default function LotsTable({ items, currentPage, pageSize }: LotsTablePro
             <th className="px-3 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">SUPPLIER</th>
             <th className="px-3 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">RECEIVED</th>
             <th className="px-3 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">EXPIRY</th>
-            <th className="px-3 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">QTY REMAINING</th>
-            <th className="px-3 py-3 text-left font-bold text-muted-foreground tracking-wider whitespace-nowrap">STATUS</th>
+            <th className="px-3 py-3 text-right font-bold text-muted-foreground tracking-wider whitespace-nowrap">QTY REMAINING</th>
+            <th className="px-3 py-3 text-right font-bold text-muted-foreground tracking-wider whitespace-nowrap">RESERVED</th>
+            <th className="px-3 py-3 text-center font-bold text-muted-foreground tracking-wider whitespace-nowrap">STATUS</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border">
           {items.length === 0 ? (
             <tr>
-              <td colSpan={8} className="px-5 py-10 text-center text-sm font-semibold text-muted-foreground">
+              <td colSpan={9} className="px-5 py-10 text-center text-sm font-semibold text-muted-foreground">
                 No Results Found
               </td>
             </tr>
           ) : (
             items.map((lot, idx) => {
-              const style = statusStyles[lot.status] || statusStyles.Available;
+              const resQty = Number(lot.reservedQuantity || 0);
+
+              let badgeStyle = statusStyles[lot.status] || statusStyles.Available;
+              let badgeLabel = badgeStyle.label;
+
+              if (resQty >= lot.quantityRemaining && lot.quantityRemaining > 0) {
+                badgeStyle = { bg: "bg-foreground text-background border-foreground", text: "font-semibold", border: "", label: "Reserved" };
+                badgeLabel = "Reserved";
+              } else if (resQty > 0) {
+                badgeStyle = { bg: "bg-muted text-foreground border-border", text: "font-semibold", border: "border", label: "Partially Reserved" };
+                badgeLabel = "Partially Reserved";
+              }
+
               return (
                 <tr key={lot.lotId} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-3 py-3 font-bold text-foreground whitespace-nowrap">
-                    {(currentPage - 1) * pageSize + idx + 1}
+                  <td className="px-3 py-3 font-bold text-foreground whitespace-nowrap font-mono">
+                    {lot.lotCode}
                   </td>
                   <td className="px-3 py-3 font-medium text-foreground">
-                    <div className="font-semibold">{lot.lotCode}</div>
-                    <div className="text-muted-foreground text-[10px]">{lot.itemName}</div>
+                    <div className="font-semibold">{lot.itemName}</div>
                   </td>
                   <td className="px-3 py-3 text-muted-foreground">{lot.locationName}</td>
                   <td className="px-3 py-3 text-muted-foreground">
@@ -75,12 +87,15 @@ export default function LotsTable({ items, currentPage, pageSize }: LotsTablePro
                       "-"
                     )}
                   </td>
-                  <td className="px-3 py-3 font-bold text-foreground">
-                    {lot.quantityRemaining.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {lot.uomName}
+                  <td className="px-3 py-3 font-mono font-semibold text-foreground text-right whitespace-nowrap">
+                    {lot.quantityRemaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {lot.uomName}
                   </td>
-                  <td className="px-3 py-3">
-                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-semibold ${style.bg} ${style.text} ${style.border}`}>
-                      {style.label}
+                  <td className="px-3 py-3 text-right font-mono font-semibold text-foreground whitespace-nowrap">
+                    {resQty.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {lot.uomName}
+                  </td>
+                  <td className="px-3 py-3 text-center whitespace-nowrap">
+                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeStyle.bg} ${badgeStyle.text} ${badgeStyle.border}`}>
+                      {badgeLabel}
                     </span>
                   </td>
                 </tr>

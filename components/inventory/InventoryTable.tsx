@@ -112,6 +112,9 @@ export default function InventoryTable({
             <th className="px-3 py-3 text-left font-bold tracking-wider whitespace-nowrap">
               Current Stock
             </th>
+            <th className="px-3 py-3 text-left font-bold tracking-wider whitespace-nowrap">
+              Reserved
+            </th>
             <th className="px-3 py-3 text-left font-bold tracking-wider whitespace-nowrap min-w-[180px]">
               Stock Level
             </th>
@@ -127,7 +130,7 @@ export default function InventoryTable({
           {items.length === 0 ? (
             <tr>
               <td
-                colSpan={8}
+                colSpan={9}
                 className="px-5 py-12 text-center text-sm font-semibold text-muted-foreground"
               >
                 No Inventory Records Found
@@ -138,7 +141,7 @@ export default function InventoryTable({
               const isExpanded = !!expandedItemIds[item.itemId];
               const rawLots = itemLots[item.itemId] || [];
               const availableLots = rawLots.filter(
-                (lot) => lot.status === "Available"
+                (lot) => lot.status === "Available" || (lot.reservedQuantity && lot.reservedQuantity > 0)
               );
               const isLoading = !!loadingLots[item.itemId];
 
@@ -190,6 +193,12 @@ export default function InventoryTable({
                         maximumFractionDigits: 2,
                       })}
                     </td>
+                    <td className="px-3 py-3.5 font-semibold font-mono text-foreground">
+                      {Number(item.reservedStock || 0).toLocaleString(undefined, {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2,
+                      })}
+                    </td>
                     <td className="px-3 py-3.5">
                       <div className="w-40 space-y-1">
                         <div className="flex items-center justify-between text-[11px]">
@@ -229,27 +238,27 @@ export default function InventoryTable({
                     </td>
                   </tr>
 
-                  {/* Expandable Lot Detail Row (Available Lots with % Share Progress Bar) */}
+                  {/* Expandable Lot Detail Row */}
                   {isExpanded && (
                     <tr className="bg-muted/10 border-b border-border">
-                      <td colSpan={8} className="p-4 sm:p-5">
+                      <td colSpan={9} className="p-4 sm:p-5">
                         <div className="rounded-xl border border-border bg-card p-4 space-y-3">
                           <div className="flex items-center justify-between border-b border-border pb-2">
                             <span className="font-semibold text-xs text-foreground">
                               Available Lots Breakdown ({item.itemName})
                             </span>
                             <span className="text-[11px] text-muted-foreground">
-                              Showing active lots and percentage share of current stock
+                              Showing active lots and reserved quantities
                             </span>
                           </div>
 
                           {isLoading ? (
                             <div className="py-6 text-center text-xs text-muted-foreground animate-pulse">
-                              Loading available lots...
+                              Loading lots...
                             </div>
                           ) : availableLots.length === 0 ? (
                             <div className="py-5 text-center text-xs text-muted-foreground">
-                              No available lots found for this item.
+                              No active lots found for this item.
                             </div>
                           ) : (
                             <div className="overflow-x-auto">
@@ -265,19 +274,23 @@ export default function InventoryTable({
                                     <th className="px-3 py-2 text-left font-semibold">
                                       Expiry Date
                                     </th>
-                                    <th className="px-3 py-2 text-left font-semibold">
+                                    <th className="px-3 py-2 text-right font-semibold">
                                       Qty Remaining
+                                    </th>
+                                    <th className="px-3 py-2 text-right font-semibold">
+                                      Reserved
                                     </th>
                                     <th className="px-3 py-2 text-left font-semibold">
                                       % Share
                                     </th>
-                                    <th className="px-3 py-2 text-left font-semibold">
+                                    <th className="px-3 py-2 text-center font-semibold">
                                       Status
                                     </th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border/60">
                                   {availableLots.map((lot) => {
+                                    const resQty = Number(lot.reservedQuantity || 0);
                                     const sharePercent =
                                       lot.sharePercent !== null && lot.sharePercent !== undefined
                                         ? Number(lot.sharePercent)
@@ -299,7 +312,7 @@ export default function InventoryTable({
                                         <td className="px-3 py-2.5">
                                           {getExpiryDisplay(lot)}
                                         </td>
-                                        <td className="px-3 py-2.5 font-semibold text-foreground">
+                                        <td className="px-3 py-2.5 text-right font-mono font-semibold text-foreground">
                                           {lot.quantityRemaining.toLocaleString(
                                             undefined,
                                             {
@@ -311,8 +324,14 @@ export default function InventoryTable({
                                             {lot.uomName}
                                           </span>
                                         </td>
+                                        <td className="px-3 py-2.5 text-right font-mono font-semibold text-foreground">
+                                          {resQty.toLocaleString(undefined, {
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 2,
+                                          })}
+                                        </td>
                                         <td className="px-3 py-2.5">
-                                          <div className="space-y-1 w-28">
+                                          <div className="space-y-1 w-24">
                                             <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
                                               <span>{sharePercent}%</span>
                                             </div>
@@ -329,7 +348,7 @@ export default function InventoryTable({
                                             </div>
                                           </div>
                                         </td>
-                                        <td className="px-3 py-2.5">
+                                        <td className="px-3 py-2.5 text-center whitespace-nowrap">
                                           <StatusBadge status={lot.status} />
                                         </td>
                                       </tr>

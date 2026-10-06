@@ -325,12 +325,14 @@ model FinishedProducts {
   SellingPrice       Decimal              @db.Decimal
   Sku                String
   Variant            String               @default("")
+  ImageUrl           String?
   BranchRequestItems BranchRequestItems[]
   BranchReturnItems  BranchReturnItems[]
   Items              Items                @relation(fields: [ItemId], references: [ItemId], onDelete: Cascade, onUpdate: NoAction, map: "FK_FinishedProducts_Items_ItemId")
   ProductionBatches  ProductionBatches[]
   Recipes            Recipes[]
   StockTransfers     StockTransfers[]
+  ProductionRequests ProductionRequests[]
 
   @@index([ItemId], map: "IX_FinishedProducts_ItemId")
 }
@@ -442,6 +444,7 @@ model InventoryLots {
   IsExpiryEstimated      Boolean
   QuantityReceived       Decimal                  @db.Decimal(18, 3)
   QuantityRemaining      Decimal                  @db.Decimal(18, 3)
+  ReservedQuantity       Decimal                  @default(0.0) @db.Decimal(18, 3)
   UomId                  Int
   UnitCost               Decimal                  @db.Decimal(18, 6)
   Status                 String
@@ -464,6 +467,8 @@ model InventoryLots {
   ReturnToVendors        ReturnToVendors[]
   StockInLines           StockInLines[]
   StockLedgers           StockLedgers[]
+  ProductionReqLotReservations ProductionReqLotReservations[]
+  MaterialIssuanceScans        MaterialIssuanceScans[]
 
   @@unique([LotCode, LocationId], map: "IX_InventoryLots_LotCode_LocationId")
   @@index([ExpiryDate], map: "IX_InventoryLots_ExpiryDate")
@@ -528,6 +533,8 @@ model Items {
   StockInLines                                    StockInLines[]
   StockLedgers                                    StockLedgers[]
   SupplierItems                                   SupplierItems[]
+  ProductionReqLotReservations                    ProductionReqLotReservations[]
+  MaterialIssuanceScans                           MaterialIssuanceScans[]
 
   @@index([CategoryId], map: "IX_Items_CategoryId")
   @@index([StockUomId], map: "IX_Items_StockUomId")
@@ -655,14 +662,23 @@ model ProductionBatches {
   UnitCost          Decimal             @default(0.0) @db.Decimal(18, 4)
   YieldPercentage   Decimal             @default(0.0) @db.Decimal(18, 2)
   Purpose           String              @default("Inventory Replenishment")
+  ProdReqId         Int?
+  CurrentStage      String              @default("Pre-Production")
+  StartedAt         DateTime?           @db.Timestamptz(6)
+  PackagedBy        String?
+  PackagedAt        DateTime?           @db.Timestamptz(6)
+  ExpiryDate        DateTime?           @db.Date
+  FinalQuantity     Decimal?            @db.Decimal(18, 3)
   BatchConsumptions BatchConsumptions[]
   FinishedProducts  FinishedProducts    @relation(fields: [ProductId], references: [ProductId], onDelete: Cascade, onUpdate: NoAction, map: "FK_ProductionBatches_FinishedProducts_ProductId")
   InventoryLots     InventoryLots?      @relation(fields: [FgLotId], references: [LotId], onUpdate: NoAction, map: "FK_ProductionBatches_InventoryLots_FgLotId")
   Recipes           Recipes             @relation(fields: [RecipeId], references: [RecipeId], onDelete: Cascade, onUpdate: NoAction, map: "FK_ProductionBatches_Recipes_RecipeId")
+  ProductionRequests ProductionRequests? @relation(fields: [ProdReqId], references: [ProdReqId], onUpdate: NoAction, map: "FK_ProductionBatches_ProductionRequests_ProdReqId")
 
   @@index([FgLotId], map: "IX_ProductionBatches_FgLotId")
   @@index([ProductId], map: "IX_ProductionBatches_ProductId")
   @@index([RecipeId], map: "IX_ProductionBatches_RecipeId")
+  @@index([ProdReqId], map: "IX_ProductionBatches_ProdReqId")
 }
 
 model PurchaseOrderItems {
@@ -755,6 +771,7 @@ model PurchaseRequisitions {
   UpdatedAt                DateTime?                  @db.Timestamptz(6)
   PurchaseOrders           PurchaseOrders[]
   PurchaseRequisitionItems PurchaseRequisitionItems[]
+  ProductionRequests       ProductionRequests[]
 
   @@index([Status], map: "IX_PurchaseRequisitions_Status")
 }
@@ -856,14 +873,16 @@ model RecallRecords {
 }
 
 model RecipeIngredients {
-  IngredientId     Int            @id(map: "PK_RecipeIngredients") @default(autoincrement())
-  RecipeId         Int
-  ItemId           Int
-  UomId            Int
-  StandardQuantity Decimal        @db.Decimal(18, 3)
-  Items            Items          @relation(fields: [ItemId], references: [ItemId], onDelete: Cascade, onUpdate: NoAction, map: "FK_RecipeIngredients_Items_ItemId")
-  Recipes          Recipes        @relation(fields: [RecipeId], references: [RecipeId], onDelete: Cascade, onUpdate: NoAction, map: "FK_RecipeIngredients_Recipes_RecipeId")
-  Uom              UnitOfMeasures @relation(fields: [UomId], references: [UomId], onDelete: Cascade, onUpdate: NoAction, map: "FK_RecipeIngredients_UnitOfMeasures_UomId")
+  IngredientId                 Int                            @id(map: "PK_RecipeIngredients") @default(autoincrement())
+  RecipeId                     Int
+  ItemId                       Int
+  UomId                        Int
+  StandardQuantity             Decimal                        @db.Decimal(18, 3)
+  Items                        Items                          @relation(fields: [ItemId], references: [ItemId], onDelete: Cascade, onUpdate: NoAction, map: "FK_RecipeIngredients_Items_ItemId")
+  Recipes                      Recipes                        @relation(fields: [RecipeId], references: [RecipeId], onDelete: Cascade, onUpdate: NoAction, map: "FK_RecipeIngredients_Recipes_RecipeId")
+  Uom                          UnitOfMeasures                 @relation(fields: [UomId], references: [UomId], onDelete: Cascade, onUpdate: NoAction, map: "FK_RecipeIngredients_UnitOfMeasures_UomId")
+  ProductionReqLotReservations ProductionReqLotReservations[]
+  MaterialIssuanceScans        MaterialIssuanceScans[]
 
   @@index([ItemId], map: "IX_RecipeIngredients_ItemId")
   @@index([RecipeId], map: "IX_RecipeIngredients_RecipeId")
@@ -871,20 +890,21 @@ model RecipeIngredients {
 }
 
 model Recipes {
-  RecipeId          Int                 @id(map: "PK_Recipes") @default(autoincrement())
-  ProductId         Int
-  OutputQuantity    Decimal             @db.Decimal(18, 3)
-  Notes             String
-  IsActive          Boolean
-  RecipeName        String              @default("")
-  Status            String              @default("")
-  Version           Int                 @default(0)
-  YieldUomId        Int?
-  RecipeCode        String              @default("")
-  ProductionBatches ProductionBatches[]
-  RecipeIngredients RecipeIngredients[]
-  Product           FinishedProducts    @relation(fields: [ProductId], references: [ProductId], onDelete: Cascade, onUpdate: NoAction, map: "FK_Recipes_FinishedProducts_ProductId")
-  UnitOfMeasures    UnitOfMeasures?     @relation(fields: [YieldUomId], references: [UomId], onDelete: Restrict, onUpdate: NoAction, map: "FK_Recipes_UnitOfMeasures_YieldUomId")
+  RecipeId           Int                  @id(map: "PK_Recipes") @default(autoincrement())
+  ProductId          Int
+  OutputQuantity     Decimal              @db.Decimal(18, 3)
+  Notes              String
+  IsActive           Boolean
+  RecipeName         String               @default("")
+  Status             String               @default("")
+  Version            Int                  @default(0)
+  YieldUomId         Int?
+  RecipeCode         String               @default("")
+  ProductionBatches  ProductionBatches[]
+  RecipeIngredients  RecipeIngredients[]
+  ProductionRequests ProductionRequests[]
+  Product            FinishedProducts     @relation(fields: [ProductId], references: [ProductId], onDelete: Cascade, onUpdate: NoAction, map: "FK_Recipes_FinishedProducts_ProductId")
+  UnitOfMeasures     UnitOfMeasures?      @relation(fields: [YieldUomId], references: [UomId], onDelete: Restrict, onUpdate: NoAction, map: "FK_Recipes_UnitOfMeasures_YieldUomId")
 
   @@index([ProductId], map: "IX_Recipes_ProductId")
   @@index([YieldUomId], map: "IX_Recipes_YieldUomId")
@@ -1130,3 +1150,100 @@ model EFMigrationsHistory {
 
   @@map("__EFMigrationsHistory")
 }
+
+model analytics_documents {
+  key        String    @id @db.VarChar(64)
+  data       Json
+  updated_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model ProductionRequests {
+  ProdReqId                    Int                           @id(map: "PK_ProductionRequests") @default(autoincrement())
+  ReqNumber                    String                        @unique(map: "IX_ProductionRequests_ReqNumber")
+  ProductId                    Int
+  RecipeId                     Int
+  Quantity                     Decimal                       @db.Decimal(18, 3)
+  Reason                       String?
+  Priority                     String                        @default("Normal")
+  RequiredDate                 DateTime                      @db.Timestamptz(6)
+  RequiredTime                 String?
+  RequestedBy                  String
+  Status                       String                        @default("Draft")
+  LinkedPrId                   Int?
+  AdminNotes                   String?
+  ApprovedBy                   String?
+  ApprovedAt                   DateTime?                     @db.Timestamptz(6)
+  RejectedBy                   String?
+  RejectedAt                   DateTime?                     @db.Timestamptz(6)
+  RejectionReason              String?
+  CreatedAt                    DateTime                      @default(now()) @db.Timestamptz(6)
+  UpdatedAt                    DateTime                      @updatedAt @db.Timestamptz(6)
+  FinishedProducts             FinishedProducts              @relation(fields: [ProductId], references: [ProductId], onUpdate: NoAction, map: "FK_ProductionRequests_FinishedProducts_ProductId")
+  Recipes                      Recipes                       @relation(fields: [RecipeId], references: [RecipeId], onUpdate: NoAction, map: "FK_ProductionRequests_Recipes_RecipeId")
+  PurchaseRequisitions         PurchaseRequisitions?         @relation(fields: [LinkedPrId], references: [PrId], onUpdate: NoAction, map: "FK_ProductionRequests_PurchaseRequisitions_LinkedPrId")
+  ProductionReqLotReservations ProductionReqLotReservations[]
+  MaterialIssuances            MaterialIssuances[]
+  ProductionBatches            ProductionBatches[]
+
+  @@index([ProductId], map: "IX_ProductionRequests_ProductId")
+  @@index([RecipeId], map: "IX_ProductionRequests_RecipeId")
+  @@index([LinkedPrId], map: "IX_ProductionRequests_LinkedPrId")
+  @@index([Status], map: "IX_ProductionRequests_Status")
+  @@index([Priority], map: "IX_ProductionRequests_Priority")
+}
+
+model ProductionReqLotReservations {
+  ReservationId      Int                @id(map: "PK_ProductionReqLotReservations") @default(autoincrement())
+  ProdReqId          Int
+  IngredientId       Int
+  ItemId             Int
+  LotId              Int
+  ReservedQuantity   Decimal            @db.Decimal(18, 3)
+  IsReleased         Boolean            @default(false)
+  ReleasedAt         DateTime?          @db.Timestamptz(6)
+  ProductionRequests ProductionRequests @relation(fields: [ProdReqId], references: [ProdReqId], onDelete: Cascade, onUpdate: NoAction, map: "FK_ProductionReqLotReservations_ProductionRequests_ProdReqId")
+  RecipeIngredients  RecipeIngredients  @relation(fields: [IngredientId], references: [IngredientId], onUpdate: NoAction, map: "FK_ProductionReqLotReservations_RecipeIngredients_IngredientId")
+  Items              Items              @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_ProductionReqLotReservations_Items_ItemId")
+  InventoryLots      InventoryLots      @relation(fields: [LotId], references: [LotId], onUpdate: NoAction, map: "FK_ProductionReqLotReservations_InventoryLots_LotId")
+
+  @@index([ProdReqId], map: "IX_ProductionReqLotReservations_ProdReqId")
+  @@index([IngredientId], map: "IX_ProductionReqLotReservations_IngredientId")
+  @@index([ItemId], map: "IX_ProductionReqLotReservations_ItemId")
+  @@index([LotId], map: "IX_ProductionReqLotReservations_LotId")
+}
+
+model MaterialIssuances {
+  IssuanceId            Int                     @id(map: "PK_MaterialIssuances") @default(autoincrement())
+  IssuanceNumber        String                  @unique(map: "IX_MaterialIssuances_IssuanceNumber")
+  ProdReqId             Int
+  IssuedBy              String
+  IssuedAt              DateTime                @default(now()) @db.Timestamptz(6)
+  Status                String                  @default("Pending")
+  ProductionRequests    ProductionRequests      @relation(fields: [ProdReqId], references: [ProdReqId], onDelete: Cascade, onUpdate: NoAction, map: "FK_MaterialIssuances_ProductionRequests_ProdReqId")
+  MaterialIssuanceScans MaterialIssuanceScans[]
+
+  @@index([ProdReqId], map: "IX_MaterialIssuances_ProdReqId")
+  @@index([Status], map: "IX_MaterialIssuances_Status")
+}
+
+model MaterialIssuanceScans {
+  ScanId            Int               @id(map: "PK_MaterialIssuanceScans") @default(autoincrement())
+  IssuanceId        Int
+  IngredientId      Int
+  ItemId            Int
+  LotId             Int
+  LotCode           String
+  ScannedAt         DateTime          @default(now()) @db.Timestamptz(6)
+  ScannedBy         String
+  IsVerified        Boolean           @default(false)
+  MaterialIssuances MaterialIssuances @relation(fields: [IssuanceId], references: [IssuanceId], onDelete: Cascade, onUpdate: NoAction, map: "FK_MaterialIssuanceScans_MaterialIssuances_IssuanceId")
+  RecipeIngredients RecipeIngredients @relation(fields: [IngredientId], references: [IngredientId], onUpdate: NoAction, map: "FK_MaterialIssuanceScans_RecipeIngredients_IngredientId")
+  Items             Items             @relation(fields: [ItemId], references: [ItemId], onUpdate: NoAction, map: "FK_MaterialIssuanceScans_Items_ItemId")
+  InventoryLots     InventoryLots     @relation(fields: [LotId], references: [LotId], onUpdate: NoAction, map: "FK_MaterialIssuanceScans_InventoryLots_LotId")
+
+  @@index([IssuanceId], map: "IX_MaterialIssuanceScans_IssuanceId")
+  @@index([IngredientId], map: "IX_MaterialIssuanceScans_IngredientId")
+  @@index([ItemId], map: "IX_MaterialIssuanceScans_ItemId")
+  @@index([LotId], map: "IX_MaterialIssuanceScans_LotId")
+}
+

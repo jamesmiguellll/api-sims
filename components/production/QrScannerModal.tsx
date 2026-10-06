@@ -29,6 +29,8 @@ export default function QrScannerModal({
   const [manualCode, setManualCode] = useState("");
   const [scanStatus, setScanStatus] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [timeLeft, setTimeLeft] = useState<number>(60);
+  const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
 
   useEffect(() => {
     if (!open) {
@@ -36,14 +38,37 @@ export default function QrScannerModal({
       setScanStatus("idle");
       setErrorMessage("");
       setManualCode("");
+      setIsTimedOut(false);
+      setTimeLeft(60);
       return;
     }
 
+    setTimeLeft(60);
+    setIsTimedOut(false);
     startCamera();
     return () => {
       stopCamera();
     };
   }, [open]);
+
+  // 60-second countdown timer
+  useEffect(() => {
+    if (!open || isTimedOut || scanStatus === "success") return;
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setIsTimedOut(true);
+          stopCamera();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [open, isTimedOut, scanStatus]);
 
   const startCamera = async () => {
     try {
@@ -71,6 +96,14 @@ export default function QrScannerModal({
       stream.getTracks().forEach((track) => track.stop());
       setStream(null);
     }
+  };
+
+  const handleRescan = () => {
+    setTimeLeft(60);
+    setIsTimedOut(false);
+    setScanStatus("idle");
+    setErrorMessage("");
+    startCamera();
   };
 
   const verifyLot = (code: string) => {
@@ -109,21 +142,44 @@ export default function QrScannerModal({
             </div>
             <div>
               <h3 className="text-sm font-bold text-foreground">Scan Ingredient QR Code</h3>
-              <p className="text-xs text-muted-foreground truncate max-w-[260px]">{itemName}</p>
+              <p className="text-xs text-muted-foreground truncate max-w-[220px]">{itemName}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            {!isTimedOut && scanStatus !== "success" && (
+              <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded-full border border-border bg-card text-foreground">
+                0:{String(timeLeft).padStart(2, "0")}
+              </span>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Camera / Viewfinder Body */}
         <div className="p-5 space-y-4">
           <div className="relative w-full aspect-4/3 bg-black rounded-xl overflow-hidden flex items-center justify-center border border-border">
-            {hasCamera ? (
+            {isTimedOut ? (
+              <div className="flex flex-col items-center justify-center text-center p-6 text-muted-foreground gap-3">
+                <AlertCircle className="w-10 h-10 text-foreground" />
+                <div>
+                  <p className="text-xs font-bold text-foreground">Scanner Session Timed Out</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Scanning stopped after 1 minute. Click Rescan to resume.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleRescan}
+                  className="bg-foreground text-background hover:bg-foreground/90 font-semibold text-xs px-4 py-2 rounded-xl transition-colors shadow-sm cursor-pointer"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> Rescan
+                </Button>
+              </div>
+            ) : hasCamera ? (
               <video
                 ref={videoRef}
                 autoPlay
@@ -141,22 +197,24 @@ export default function QrScannerModal({
               </div>
             )}
 
-            {/* Target Reticle */}
-            <div className="absolute inset-8 border-2 border-foreground/50 rounded-xl pointer-events-none flex flex-col justify-between p-2">
-              <div className="flex justify-between">
-                <div className="w-4 h-4 border-t-2 border-l-2 border-foreground" />
-                <div className="w-4 h-4 border-t-2 border-r-2 border-foreground" />
+            {/* Target Reticle (Only when active) */}
+            {!isTimedOut && (
+              <div className="absolute inset-8 border-2 border-foreground/50 rounded-xl pointer-events-none flex flex-col justify-between p-2">
+                <div className="flex justify-between">
+                  <div className="w-4 h-4 border-t-2 border-l-2 border-foreground" />
+                  <div className="w-4 h-4 border-t-2 border-r-2 border-foreground" />
+                </div>
+                <div className="text-center">
+                  <span className="text-[10px] uppercase tracking-wider font-mono bg-black/70 text-white px-2 py-0.5 rounded">
+                    Target Lot: {targetLot}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <div className="w-4 h-4 border-b-2 border-l-2 border-foreground" />
+                  <div className="w-4 h-4 border-b-2 border-r-2 border-foreground" />
+                </div>
               </div>
-              <div className="text-center">
-                <span className="text-[10px] uppercase tracking-wider font-mono bg-black/70 text-white px-2 py-0.5 rounded">
-                  Target Lot: {targetLot}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <div className="w-4 h-4 border-b-2 border-l-2 border-foreground" />
-                <div className="w-4 h-4 border-b-2 border-r-2 border-foreground" />
-              </div>
-            </div>
+            )}
 
             {/* Success Overlay */}
             {scanStatus === "success" && (

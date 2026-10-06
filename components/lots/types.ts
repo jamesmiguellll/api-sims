@@ -13,6 +13,9 @@ export type LotItem = {
   expiryDate: string | null; // ISO date string
   quantityReceived: number;
   quantityRemaining: number;
+  reservedQuantity?: number;
+  availableQuantity?: number;
+  reservations?: Array<{ reservationId?: number; reqNumber: string; reservedQuantity: number; status: string }>;
   uomName: string;
   unitCost: number;
   status: string;
