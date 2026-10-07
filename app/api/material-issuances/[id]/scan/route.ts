@@ -42,26 +42,33 @@ export async function POST(request: Request, props: { params: Promise<{ id: stri
       return NextResponse.json({ success: false, message: "This issuance has already been completed." }, { status: 400 });
     }
 
-    // Parse QR payload
+    // Parse QR payload (from Goods & Receiving Stock-In / Put-Away QR code)
     let scannedLotCode = qrRaw;
     let scannedItemId: number | null = null;
 
     try {
-      const parsed = JSON.parse(qrRaw);
-      if (parsed.lot) scannedLotCode = parsed.lot.trim();
+      const parsed = typeof qrRaw === "object" ? qrRaw : JSON.parse(qrRaw);
+      if (parsed.lot) scannedLotCode = String(parsed.lot).trim();
+      else if (parsed.lotCode) scannedLotCode = String(parsed.lotCode).trim();
+      else if (parsed.lot_code) scannedLotCode = String(parsed.lot_code).trim();
+      else if (parsed.lotNo) scannedLotCode = String(parsed.lotNo).trim();
+      else if (parsed.code) scannedLotCode = String(parsed.code).trim();
       if (parsed.itemId) scannedItemId = Number(parsed.itemId);
     } catch {
       // Not JSON, use raw string as lot code
       scannedLotCode = qrRaw.trim();
     }
 
-    // Find the allocated reservation for this ingredient that matches the lot code
-    const matchingReservation = issuance.ProductionRequests.ProductionReqLotReservations.find((res) => {
-      const lotMatch = res.InventoryLots.LotCode.toLowerCase() === scannedLotCode.toLowerCase();
-      const ingMatch = !ingredientId || res.IngredientId === ingredientId;
-      const itemMatch = !scannedItemId || res.ItemId === scannedItemId;
-      return lotMatch && ingMatch && itemMatch;
-    });
+    // Find the allocated reservation in this issuance that matches the scanned lot code
+    const matchingReservation =
+      issuance.ProductionRequests.ProductionReqLotReservations.find((res) => {
+        const lotMatch = res.InventoryLots.LotCode.trim().toLowerCase() === scannedLotCode.trim().toLowerCase();
+        const ingMatch = !ingredientId || res.IngredientId === ingredientId;
+        return lotMatch && ingMatch;
+      }) ||
+      issuance.ProductionRequests.ProductionReqLotReservations.find((res) => {
+        return res.InventoryLots.LotCode.trim().toLowerCase() === scannedLotCode.trim().toLowerCase();
+      });
 
     if (!matchingReservation) {
       return NextResponse.json({

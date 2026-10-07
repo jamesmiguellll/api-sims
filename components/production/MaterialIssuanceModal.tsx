@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import ModalWrapper from "@/components/resources-suppliers/ModalWrapper";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
@@ -13,10 +12,7 @@ import {
   AlertCircle,
   RefreshCw,
   Barcode,
-  ScanLine,
   X,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import jsQR from "jsqr";
 import { MaterialIssuanceDTO, LotReservationDTO } from "./types";
@@ -38,7 +34,7 @@ const playBeep = (success: boolean) => {
     const gain = audioCtx.createGain();
     osc.type = "sine";
     if (success) {
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
       gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
       osc.connect(gain);
@@ -81,7 +77,6 @@ export default function MaterialIssuanceModal({
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [hasCamera, setHasCamera] = useState<boolean>(false);
   const [cameraLoading, setCameraLoading] = useState<boolean>(false);
-  const [manualCode, setManualCode] = useState<string>("");
   const [scanStatus, setScanStatus] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [timeLeft, setTimeLeft] = useState<number>(60);
@@ -255,18 +250,19 @@ export default function MaterialIssuanceModal({
     }
   };
 
-  // Parse QR code payload
+  // Parse QR code payload (from Goods & Receiving Stock-In / Put-Away QR code)
   const parseCodeString = (raw: string): string => {
     try {
-      const parsed = JSON.parse(raw);
-      if (parsed.lotCode) return String(parsed.lotCode).trim();
-      if (parsed.lotNo) return String(parsed.lotNo).trim();
+      const parsed = typeof raw === "object" ? raw : JSON.parse(raw);
       if (parsed.lot) return String(parsed.lot).trim();
+      if (parsed.lotCode) return String(parsed.lotCode).trim();
+      if (parsed.lot_code) return String(parsed.lot_code).trim();
+      if (parsed.lotNo) return String(parsed.lotNo).trim();
       if (parsed.code) return String(parsed.code).trim();
     } catch {
-      // plain text
+      // plain text string
     }
-    return raw.trim();
+    return String(raw).trim();
   };
 
   // Verify and record scan against backend
@@ -276,7 +272,7 @@ export default function MaterialIssuanceModal({
 
     if (!code) {
       setScanStatus("error");
-      setErrorMessage("Please enter or scan a valid QR lot code.");
+      setErrorMessage("Please scan a valid QR code.");
       playBeep(false);
       return;
     }
@@ -287,14 +283,14 @@ export default function MaterialIssuanceModal({
     // Check if code matches target lot
     if (trimmedCode !== expected && !trimmedCode.includes(expected) && !expected.includes(trimmedCode)) {
       setScanStatus("error");
-      setErrorMessage(`Verification Failed: Scanned code "${code}" does not match target lot "${target}".`);
+      setErrorMessage(`Verification Failed: Scanned code "${code}" does not match required lot "${target}".`);
       playBeep(false);
       return;
     }
 
     try {
       const res = await api.post(`/api/material-issuances/${issuanceId}/scan`, {
-        qrRaw: code,
+        qrRaw: rawCode, // Send full QR code payload from Goods & Receiving
         ingredientId: activeTargetLot?.ingredientId,
         scannedBy: issuance?.issuedBy || "Inventory Manager",
       });
@@ -303,15 +299,13 @@ export default function MaterialIssuanceModal({
         setScanStatus("success");
         setErrorMessage("");
         playBeep(true);
-        toast.success(`Lot ${code} verified successfully!`);
+        toast.success(`Lot ${target} verified successfully!`);
 
-        // Refresh issuance details
+        // Refresh issuance details from backend
         await fetchDetails();
 
-        // Check next unverified lot
         setTimeout(() => {
           setScanStatus("idle");
-          setManualCode("");
         }, 1200);
       } else {
         setScanStatus("error");
@@ -321,7 +315,7 @@ export default function MaterialIssuanceModal({
     } catch (err: any) {
       console.error(err);
       setScanStatus("error");
-      setErrorMessage(err.response?.data?.message || "Failed to record scan.");
+      setErrorMessage(err.response?.data?.message || "Verification failed.");
       playBeep(false);
     }
   };
@@ -353,7 +347,7 @@ export default function MaterialIssuanceModal({
             try {
               const imageData = ctx.getImageData(0, 0, width, height);
               const qrResult = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: "dontInvert",
+                inversionAttempts: "attemptBoth", // Scans both normal and inverted QR codes
               });
 
               if (qrResult && qrResult.data) {
@@ -450,29 +444,22 @@ export default function MaterialIssuanceModal({
         )}
 
         {/* ========================================================================= */}
-        {/* CAMERA QR SCANNER SECTION - APPEARS DIRECTLY ON TOP OF MATERIAL ISSUANCE  */}
+        {/* QR CODE SCANNER SECTION - APPEARS DIRECTLY ON TOP OF MATERIAL ISSUANCE    */}
         {/* ========================================================================= */}
         {!isAlreadyIssued && !allVerified && cameraVisible && (
           <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden animate-in fade-in duration-200">
-            {/* Camera Panel Header */}
+            {/* Panel Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
               <div className="flex items-center gap-2.5">
                 <div className="w-7 h-7 rounded-lg bg-foreground text-background flex items-center justify-center shrink-0">
                   <Camera size={15} />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                      Live QR Code Scanner
-                    </h4>
-                    {activeTargetLot && (
-                      <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-foreground text-background">
-                        Target: {activeTargetLot.lotCode}
-                      </span>
-                    )}
-                  </div>
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
+                    QR Code Scanner
+                  </h4>
                   <p className="text-[11px] text-muted-foreground">
-                    Point camera at packaging QR code or verify below
+                    Point camera at Goods & Receiving packaging QR code
                   </p>
                 </div>
               </div>
@@ -483,52 +470,24 @@ export default function MaterialIssuanceModal({
                     0:{String(timeLeft).padStart(2, "0")}
                   </span>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCloseCamera}
-                  className="h-7 text-xs text-muted-foreground hover:text-foreground px-2 cursor-pointer"
-                  title="Close Camera View"
-                >
-                  <X size={14} className="mr-1" /> Close Camera
-                </Button>
               </div>
             </div>
 
-            {/* Camera Body: 2-Column Responsive Layout */}
+            {/* Body: 2-Column Responsive Layout */}
             <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-              {/* Left Column: Viewfinder */}
+              {/* Left Column: Camera Viewfinder */}
               <div className="relative w-full aspect-4/3 bg-black rounded-xl overflow-hidden flex items-center justify-center border border-border">
-                {/* 1. Timed Out Overlay (1 minute limit without activity) */}
+                {/* 1. Timed Out Overlay (1 minute inactivity) - purely informative, no buttons here */}
                 {isTimedOut ? (
-                  <div className="flex flex-col items-center justify-center text-center p-5 text-muted-foreground gap-3 z-20 w-full h-full bg-black/95">
+                  <div className="flex flex-col items-center justify-center text-center p-6 text-muted-foreground gap-2 z-20 w-full h-full bg-black/95">
                     <div className="w-10 h-10 rounded-full bg-muted/20 border border-border flex items-center justify-center text-foreground">
                       <AlertCircle className="w-5 h-5 text-foreground" />
                     </div>
                     <div>
                       <p className="text-xs font-bold text-foreground">Camera Session Timed Out</p>
                       <p className="text-[11px] text-muted-foreground mt-0.5 max-w-[220px]">
-                        Closed after 1 minute of inactivity.
+                        Auto-closed after 1 minute of inactivity.
                       </p>
-                    </div>
-
-                    {/* Both buttons directly under the message as requested: Close and Rescan */}
-                    <div className="flex items-center gap-2 pt-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleCloseCamera}
-                        className="text-xs border-border bg-card hover:bg-muted cursor-pointer"
-                      >
-                        <X className="w-3.5 h-3.5 mr-1" /> Close
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleRescan}
-                        className="text-xs bg-foreground text-background hover:bg-foreground/90 cursor-pointer shadow-sm"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5 mr-1" /> Rescan
-                      </Button>
                     </div>
                   </div>
                 ) : null}
@@ -556,16 +515,8 @@ export default function MaterialIssuanceModal({
                         <Barcode className="w-10 h-10 text-muted-foreground/40 mb-1 animate-pulse" />
                         <p className="text-xs font-semibold text-foreground">Camera Scanner Inactive</p>
                         <p className="text-[11px] text-muted-foreground max-w-[200px]">
-                          {errorMessage || "Camera unavailable. You can enter or simulate the code below."}
+                          {errorMessage || "Camera unavailable."}
                         </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={startCamera}
-                          className="mt-1 text-xs border-border hover:bg-muted cursor-pointer"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5 mr-1" /> Retry Camera
-                        </Button>
                       </>
                     )}
                   </div>
@@ -603,10 +554,10 @@ export default function MaterialIssuanceModal({
                 )}
               </div>
 
-              {/* Right Column: Active Target Lot Details & Verification Controls */}
+              {/* Right Column: Target Lot Details + Close & Rescan Buttons */}
               <div className="space-y-3">
-                <div className="p-3 rounded-xl border border-border bg-muted/20 space-y-1.5">
-                  <div className="text-[11px] text-muted-foreground uppercase font-semibold">
+                <div className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-2">
+                  <div className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">
                     Current Lot Verification Target
                   </div>
                   <div className="flex items-center justify-between">
@@ -619,52 +570,62 @@ export default function MaterialIssuanceModal({
                       <div className="text-[11px] text-muted-foreground">Reserved</div>
                     </div>
                   </div>
-                  <div className="pt-1 flex items-center justify-between border-t border-border/50 text-xs">
-                    <span className="text-muted-foreground">Target Lot:</span>
-                    <span className="font-mono font-bold text-foreground bg-muted px-2 py-0.5 rounded">
+                  <div className="pt-2 flex items-center justify-between border-t border-border/50 text-xs">
+                    <span className="text-muted-foreground font-medium">Target Lot:</span>
+                    <span className="font-mono font-bold text-foreground bg-muted px-2.5 py-0.5 rounded border border-border">
                       {activeTargetLot?.lotCode || "—"}
                     </span>
                   </div>
                 </div>
 
-                {/* Error Banner */}
+                {/* Status Feedback Banners */}
                 {scanStatus === "error" && (
-                  <div className="flex items-start gap-2 p-2.5 rounded-xl border border-border bg-muted/40 text-foreground text-xs animate-shake">
+                  <div className="flex items-start gap-2 p-3 rounded-xl border border-destructive/30 bg-destructive/10 text-foreground text-xs animate-shake">
                     <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-foreground" />
                     <span className="text-[11px]">{errorMessage}</span>
                   </div>
                 )}
 
-                {/* Manual Barcode Entry + Quick Simulate Button */}
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Type or scan barcode..."
-                      value={manualCode}
-                      onChange={(e) => setManualCode(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") verifyAndRecordScan(manualCode);
-                      }}
-                      className="h-9 text-xs font-mono"
-                    />
-                    <Button
-                      onClick={() => verifyAndRecordScan(manualCode)}
-                      className="h-9 px-3.5 text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 shrink-0 cursor-pointer"
-                    >
-                      Verify
-                    </Button>
+                {scanStatus === "success" && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl border border-border bg-muted text-foreground text-xs animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 shrink-0 text-foreground" />
+                    <span className="text-[11px] font-semibold">Lot successfully verified!</span>
                   </div>
+                )}
 
-                  {activeTargetLot && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => verifyAndRecordScan(activeTargetLot.lotCode)}
-                      className="w-full text-xs font-semibold border-border hover:bg-muted cursor-pointer"
-                    >
-                      <ScanLine className="w-3.5 h-3.5 mr-1.5" /> Simulate Scan ({activeTargetLot.lotCode})
-                    </Button>
-                  )}
+                {scanStatus === "idle" && !isTimedOut && (
+                  <div className="p-3 rounded-xl border border-border bg-card text-xs text-muted-foreground flex items-center gap-2">
+                    <Barcode className="w-4 h-4 text-foreground shrink-0 animate-pulse" />
+                    <span className="text-[11px]">Awaiting QR code scan from Goods & Receiving...</span>
+                  </div>
+                )}
+
+                {isTimedOut && (
+                  <div className="p-3 rounded-xl border border-border bg-muted/40 text-xs text-muted-foreground flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-foreground shrink-0" />
+                    <span className="text-[11px]">Camera session timed out. Click Rescan to resume.</span>
+                  </div>
+                )}
+
+                {/* Close and Rescan buttons positioned in this panel (replacing the manual barcode / simulate scan buttons) */}
+                <div className="flex items-center gap-2 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCloseCamera}
+                    className="flex-1 text-xs border-border hover:bg-muted font-semibold cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5 mr-1" /> Close Camera
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleRescan}
+                    className="flex-1 text-xs font-semibold bg-foreground text-background hover:bg-foreground/90 cursor-pointer shadow-sm"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 mr-1" /> Rescan
+                  </Button>
                 </div>
               </div>
             </div>
@@ -738,7 +699,7 @@ export default function MaterialIssuanceModal({
                     <th className="py-2.5 px-4 font-semibold text-muted-foreground">Suggested Lot</th>
                     <th className="py-2.5 px-4 font-semibold text-muted-foreground text-right">Reserved Qty</th>
                     <th className="py-2.5 px-4 font-semibold text-muted-foreground">Expiry Date</th>
-                    <th className="py-2.5 px-4 font-semibold text-muted-foreground text-center">Scan Action</th>
+                    <th className="py-2.5 px-4 font-semibold text-muted-foreground text-center">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -749,9 +710,10 @@ export default function MaterialIssuanceModal({
                     return (
                       <tr
                         key={res.reservationId}
+                        onClick={() => !isVerified && handleFocusLot(res)}
                         className={`hover:bg-muted/10 transition-colors ${
-                          isTarget && !isVerified ? "bg-muted/20" : ""
-                        }`}
+                          !isVerified ? "cursor-pointer" : ""
+                        } ${isTarget && !isVerified ? "bg-muted/20" : ""}`}
                       >
                         {/* Ingredient Name */}
                         <td className="py-3 px-4 font-semibold text-foreground">
@@ -780,26 +742,14 @@ export default function MaterialIssuanceModal({
                           {res.expiryDate ? new Date(res.expiryDate).toLocaleDateString() : "—"}
                         </td>
 
-                        {/* Scan Action */}
+                        {/* Status Column: Checkmark when verified, blank otherwise as requested */}
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           {isVerified || isAlreadyIssued ? (
                             <span className="inline-flex items-center text-[11px] font-semibold text-background bg-foreground border border-foreground px-2.5 py-0.5 rounded-full">
-                              Verified ✓
-                            </span>
-                          ) : isTarget && cameraVisible ? (
-                            <span className="inline-flex items-center text-[11px] font-semibold text-foreground bg-muted border border-border px-2.5 py-0.5 rounded-full animate-pulse">
-                              Scanning Now...
+                              ✓ Verified
                             </span>
                           ) : (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleFocusLot(res)}
-                              className="h-7 text-xs font-semibold px-3 rounded-lg border-border hover:bg-muted text-foreground transition-colors cursor-pointer"
-                            >
-                              Scan This Lot
-                            </Button>
+                            <span className="text-muted-foreground text-xs font-mono">—</span>
                           )}
                         </td>
                       </tr>
