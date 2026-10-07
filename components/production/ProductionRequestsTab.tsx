@@ -10,7 +10,7 @@ import Pagination from "@/components/Pagination";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { ProductionRequestEntity } from "./types";
-import ProductionRequestModal from "./ProductionRequestModal";
+import ProductionRequestModal, { formatTimeTo12Hour } from "./ProductionRequestModal";
 import PrSummaryModal from "./PrSummaryModal";
 
 interface ProductionRequestsTabProps {
@@ -209,6 +209,47 @@ export default function ProductionRequestsTab({
         )}
       </div>
 
+      {/* Filters Bar (Search & Priority Filter - Top orientation matching PR) */}
+      <div className="mb-6 border border-border rounded-xl overflow-hidden bg-card">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 bg-muted/20">
+          <div className="flex items-center gap-3 flex-1">
+            <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+            <Input
+              type="text"
+              placeholder="Search by Request No., Product, Variant, or Recipe..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="border-0 shadow-none focus-visible:ring-0 bg-transparent h-8 p-0 text-sm flex-1 text-foreground placeholder:text-muted-foreground"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 pl-4 border-l border-border/50">
+            <div className="flex items-center">
+              <Select
+                value={priorityFilter}
+                onValueChange={(val) => {
+                  setPriorityFilter(val);
+                  setCurrentPage(1);
+                }}
+              >
+                <SelectTrigger className="h-10 min-w-[180px] w-auto rounded-xl border border-border bg-card px-3.5 text-sm font-medium text-foreground shadow-sm focus:ring-1 focus:ring-ring">
+                  <SelectValue placeholder="All Priorities" />
+                </SelectTrigger>
+                <SelectContent className="min-w-[180px] bg-popover border-border">
+                  <SelectItem value="All">All Priorities</SelectItem>
+                  <SelectItem value="Low">Low</SelectItem>
+                  <SelectItem value="Medium">Medium</SelectItem>
+                  <SelectItem value="High">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Top Status Tabs (Strictly no Draft, no Cancelled) */}
       <div className="border-b border-border overflow-x-auto">
         <div className="flex items-center gap-1.5 min-w-max pb-2">
@@ -244,46 +285,8 @@ export default function ProductionRequestsTab({
         </div>
       </div>
 
-      {/* Filter Bar (Search + Priority Filter Only - No Status Filter Dropdown) */}
+      {/* Requests Table */}
       <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/20 border-b border-border">
-          <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-            <Search className="w-4 h-4 text-muted-foreground shrink-0 ml-1" />
-            <Input
-              type="text"
-              placeholder="Search by Request No., Product, Variant, or Recipe..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="h-9 border-none bg-transparent shadow-none focus-visible:ring-0 text-xs placeholder:text-muted-foreground"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* Priority Filter */}
-            <Select
-              value={priorityFilter}
-              onValueChange={(val) => {
-                setPriorityFilter(val);
-                setCurrentPage(1);
-              }}
-            >
-              <SelectTrigger className="h-9 text-xs rounded-lg border-border bg-card w-[130px]">
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent className="bg-popover border-border">
-                <SelectItem value="All" className="text-xs">Priority</SelectItem>
-                <SelectItem value="Low" className="text-xs">Low</SelectItem>
-                <SelectItem value="Medium" className="text-xs">Medium</SelectItem>
-                <SelectItem value="High" className="text-xs">High</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        {/* Requests Table */}
         <div className="overflow-x-auto min-h-[280px]">
           <table className="w-full text-left border-collapse text-xs">
             <thead className="bg-muted/40 border-b border-border">
@@ -381,9 +384,14 @@ export default function ProductionRequestsTab({
                         <StatusBadge status={displayStatus} />
                       </td>
 
-                      {/* Required Date (Date only - time removed) */}
+                      {/* Required Schedule (Date & 12H Time) */}
                       <td className="py-3.5 px-4 whitespace-nowrap font-medium text-foreground">
-                        {req.requiredDate ? new Date(req.requiredDate).toLocaleDateString() : "—"}
+                        <div>{req.requiredDate ? new Date(req.requiredDate).toLocaleDateString() : "—"}</div>
+                        {req.requiredTime && (
+                          <div className="text-[11px] text-muted-foreground font-normal">
+                            {formatTimeTo12Hour(req.requiredTime)}
+                          </div>
+                        )}
                       </td>
 
                       {/* Actions (Three Dots Menu + Quick Start for Head Cook) */}

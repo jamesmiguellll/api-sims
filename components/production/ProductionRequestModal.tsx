@@ -51,6 +51,48 @@ const REASON_OPTIONS = [
   "Other",
 ];
 
+export const HOURS_12 = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+export const MINUTES_OPTIONS = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+
+export function parse24HTo12H(time24: string): { hour: string; minute: string; period: "AM" | "PM" } {
+  if (!time24 || !time24.includes(":")) {
+    return { hour: "08", minute: "00", period: "AM" };
+  }
+  const [hStr, mStr] = time24.split(":");
+  let h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  if (isNaN(h)) h = 8;
+  const minute = isNaN(m) ? "00" : String(m).padStart(2, "0");
+
+  const period: "AM" | "PM" = h >= 12 ? "PM" : "AM";
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  const hour = String(h12).padStart(2, "0");
+
+  return { hour, minute, period };
+}
+
+export function convert12HTo24H(hour: string, minute: string, period: "AM" | "PM"): string {
+  let h = parseInt(hour, 10);
+  if (isNaN(h) || h < 1 || h > 12) h = 8;
+  const m = parseInt(minute, 10);
+  const mStr = isNaN(m) || m < 0 || m > 59 ? "00" : String(m).padStart(2, "0");
+
+  if (period === "AM") {
+    if (h === 12) h = 0;
+  } else {
+    if (h !== 12) h += 12;
+  }
+  return `${String(h).padStart(2, "0")}:${mStr}`;
+}
+
+export function formatTimeTo12Hour(timeStr?: string | null): string {
+  if (!timeStr) return "—";
+  if (/am|pm/i.test(timeStr)) return timeStr;
+  const { hour, minute, period } = parse24HTo12H(timeStr);
+  return `${hour}:${minute} ${period}`;
+}
+
 export default function ProductionRequestModal({
   open,
   onClose,
@@ -72,6 +114,9 @@ export default function ProductionRequestModal({
   const [priority, setPriority] = useState<"Low" | "Medium" | "High">("Medium");
   const [requiredDate, setRequiredDate] = useState<string>("");
   const [requiredTime, setRequiredTime] = useState<string>("08:00");
+  const [timeHour, setTimeHour] = useState<string>("08");
+  const [timeMinute, setTimeMinute] = useState<string>("00");
+  const [timePeriod, setTimePeriod] = useState<"AM" | "PM">("AM");
   const [selectedReasonOption, setSelectedReasonOption] = useState<string>("Regular Stock Replenishment");
   const [customReason, setCustomReason] = useState<string>("");
 
@@ -134,7 +179,12 @@ export default function ProductionRequestModal({
         }
 
         setRequiredDate(initialRequest.requiredDate ? initialRequest.requiredDate.slice(0, 10) : "");
-        setRequiredTime(initialRequest.requiredTime || "08:00");
+        const rawTime = initialRequest.requiredTime || "08:00";
+        setRequiredTime(rawTime);
+        const parsedTime = parse24HTo12H(rawTime);
+        setTimeHour(parsedTime.hour);
+        setTimeMinute(parsedTime.minute);
+        setTimePeriod(parsedTime.period);
 
         const rawReason = initialRequest.reason || "Regular Stock Replenishment";
         if (REASON_OPTIONS.includes(rawReason)) {
@@ -156,6 +206,9 @@ export default function ProductionRequestModal({
         const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth() + 1).padStart(2, "0")}-${String(tomorrowDate.getDate()).padStart(2, "0")}`;
         setRequiredDate(tomorrowStr);
         setRequiredTime("08:00");
+        setTimeHour("08");
+        setTimeMinute("00");
+        setTimePeriod("AM");
         setSelectedReasonOption("Regular Stock Replenishment");
         setCustomReason("");
         setLotSuggestions(null);
@@ -226,7 +279,11 @@ export default function ProductionRequestModal({
   useEffect(() => {
     if (productId) {
       const pId = Number(productId);
-      const matched = recipes.filter((r) => r.productId === pId);
+      const matched = recipes.filter((r) => {
+        if (r.productId === pId) return true;
+        const rProd = products.find((p) => p.productId === r.productId);
+        return rProd && selectedProductName && rProd.productName.toLowerCase() === selectedProductName.toLowerCase();
+      });
       setFilteredRecipes(matched);
       if (matched.length > 0 && !matched.some((r) => String(r.recipeId) === recipeId)) {
         setRecipeId(String(matched[0].recipeId));
@@ -235,7 +292,7 @@ export default function ProductionRequestModal({
     } else {
       setFilteredRecipes([]);
     }
-  }, [productId, recipes, recipeId]);
+  }, [productId, recipes, recipeId, selectedProductName, products]);
 
   // Fetch live lot suggestions whenever recipeId or quantity changes
   useEffect(() => {
@@ -281,22 +338,20 @@ export default function ProductionRequestModal({
       const currentTimeStr = `${currentHours}:${currentMins}`;
       if (requiredTime < currentTimeStr) {
         setRequiredTime(currentTimeStr);
+        const parsed = parse24HTo12H(currentTimeStr);
+        setTimeHour(parsed.hour);
+        setTimeMinute(parsed.minute);
+        setTimePeriod(parsed.period);
       }
     }
   };
 
-  const handleTimeChange = (val: string) => {
-    if (requiredDate === today) {
-      const now = new Date();
-      const currentHours = String(now.getHours()).padStart(2, "0");
-      const currentMins = String(now.getMinutes()).padStart(2, "0");
-      const currentTimeStr = `${currentHours}:${currentMins}`;
-      if (val < currentTimeStr) {
-        toast.error("Required time cannot be in the past for today.");
-        return;
-      }
-    }
-    setRequiredTime(val);
+  const updateTime = (newHour: string, newMinute: string, newPeriod: "AM" | "PM") => {
+    setTimeHour(newHour);
+    setTimeMinute(newMinute);
+    setTimePeriod(newPeriod);
+    const time24 = convert12HTo24H(newHour, newMinute, newPeriod);
+    setRequiredTime(time24);
   };
 
   // Handle Save (Draft or Submit)
@@ -322,7 +377,7 @@ export default function ProductionRequestModal({
       const currentMins = String(now.getMinutes()).padStart(2, "0");
       const currentTimeStr = `${currentHours}:${currentMins}`;
       if (requiredTime < currentTimeStr) {
-        toast.error("Required time cannot be in the past.");
+        toast.error(`Required time cannot be in the past for today (current time: ${formatTimeTo12Hour(currentTimeStr)}).`);
         return;
       }
     }
@@ -664,20 +719,82 @@ export default function ProductionRequestModal({
               )}
             </div>
 
-            {/* Required Time (No duplicate icons) */}
+            {/* Required Time (12-hour format with AM/PM) */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground">Required Time</label>
               {isViewMode ? (
-                <div className="p-2.5 rounded-xl border border-border bg-card text-xs font-mono text-foreground">
-                  {initialRequest?.requiredTime || "—"}
+                <div className="h-10 px-3 rounded-xl border border-border bg-card text-xs font-semibold text-foreground flex items-center justify-between">
+                  <span>{formatTimeTo12Hour(initialRequest?.requiredTime || requiredTime)}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground font-bold uppercase">
+                    {parse24HTo12H(initialRequest?.requiredTime || requiredTime).period}
+                  </span>
                 </div>
               ) : (
-                <Input
-                  type="time"
-                  value={requiredTime}
-                  onChange={(e) => handleTimeChange(e.target.value)}
-                  className="h-10 text-xs rounded-xl border-border bg-card"
-                />
+                <div className="flex items-center gap-1.5 h-10">
+                  {/* Hour */}
+                  <Select
+                    value={timeHour}
+                    onValueChange={(val) => updateTime(val, timeMinute, timePeriod)}
+                  >
+                    <SelectTrigger className="h-10 flex-1 text-xs font-mono font-medium rounded-xl border-border bg-card px-2 text-center shadow-xs">
+                      <SelectValue placeholder="HH" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56 bg-popover border-border">
+                      {HOURS_12.map((h) => (
+                        <SelectItem key={h} value={h} className="text-xs font-mono">
+                          {h}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <span className="text-muted-foreground font-bold text-xs shrink-0">:</span>
+
+                  {/* Minute */}
+                  <Select
+                    value={timeMinute}
+                    onValueChange={(val) => updateTime(timeHour, val, timePeriod)}
+                  >
+                    <SelectTrigger className="h-10 flex-1 text-xs font-mono font-medium rounded-xl border-border bg-card px-2 text-center shadow-xs">
+                      <SelectValue placeholder="MM" />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-56 bg-popover border-border">
+                      {Array.from(new Set([...MINUTES_OPTIONS, timeMinute]))
+                        .sort((a, b) => Number(a) - Number(b))
+                        .map((m) => (
+                          <SelectItem key={m} value={m} className="text-xs font-mono">
+                            {m}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* AM / PM Segmented Control */}
+                  <div className="flex rounded-xl border border-border p-0.5 bg-muted/40 shrink-0 h-10 items-center">
+                    <button
+                      type="button"
+                      onClick={() => updateTime(timeHour, timeMinute, "AM")}
+                      className={`h-full px-2.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                        timePeriod === "AM"
+                          ? "bg-foreground text-background shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      AM
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => updateTime(timeHour, timeMinute, "PM")}
+                      className={`h-full px-2.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                        timePeriod === "PM"
+                          ? "bg-foreground text-background shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      PM
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           </div>

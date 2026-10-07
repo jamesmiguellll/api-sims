@@ -73,18 +73,22 @@ export default function InventoryTable({
     if (nextState && !itemLots[itemId]) {
       setLoadingLots((prev) => ({ ...prev, [itemId]: true }));
       try {
-        let res;
+        let lots: LotItem[] = [];
         try {
-          res = await api.get(`/api/inventory/lots/byitem/${itemId}`);
+          const res = await api.get(`/api/inventory/lots/byitem/${itemId}`);
+          if (res.data?.success && Array.isArray(res.data.data)) {
+            lots = res.data.data;
+          }
         } catch {
-          res = await api.get(`/api/inventory/lots/byitem/${itemId}`);
+          // Robust fallback to query param endpoint if route compilation lags
+          const fallbackRes = await api.get(`/api/inventory/lots?itemId=${itemId}&pageSize=200`);
+          if (fallbackRes.data?.success) {
+            const raw = fallbackRes.data.data;
+            lots = Array.isArray(raw?.items) ? raw.items : Array.isArray(raw) ? raw : [];
+          }
         }
 
-        if (res.data?.success) {
-          setItemLots((prev) => ({ ...prev, [itemId]: res.data.data || [] }));
-        } else {
-          setItemLots((prev) => ({ ...prev, [itemId]: [] }));
-        }
+        setItemLots((prev) => ({ ...prev, [itemId]: lots }));
       } catch (err) {
         console.error("Failed to load lots for item", itemId, err);
         setItemLots((prev) => ({ ...prev, [itemId]: [] }));

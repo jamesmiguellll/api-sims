@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET(request: Request, props: { params: Promise<{ itemId: string }> }) {
-  const params = await props.params;
+export async function GET(
+  request: Request,
+  props: { params: Promise<{ itemId: string }> | { itemId: string } }
+) {
   try {
-    const itemId = parseInt(params.itemId, 10);
+    const rawParams = await props?.params;
+    const itemId = parseInt(String(rawParams?.itemId), 10);
+    if (isNaN(itemId)) {
+      return NextResponse.json({ success: false, message: "Invalid item ID" }, { status: 400 });
+    }
 
     const lots = await prisma.inventoryLots.findMany({
       where: { ItemId: itemId, Status: { in: ["Available", "Active"] }, QuantityRemaining: { gt: 0 } },
