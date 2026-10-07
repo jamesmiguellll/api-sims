@@ -133,9 +133,14 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         // Release lot reservations
         for (const res of existing.ProductionReqLotReservations) {
           if (!res.IsReleased) {
+            const lot = await tx.inventoryLots.findUnique({ where: { LotId: res.LotId } });
+            const currentReserved = Number(lot?.ReservedQuantity || 0);
+            const toDeduct = Number(res.ReservedQuantity);
+            const safeReserved = Math.max(0, currentReserved - toDeduct);
+
             await tx.inventoryLots.update({
               where: { LotId: res.LotId },
-              data: { ReservedQuantity: { decrement: res.ReservedQuantity } },
+              data: { ReservedQuantity: safeReserved },
             });
             await tx.productionReqLotReservations.update({
               where: { ReservationId: res.ReservationId },
@@ -181,9 +186,14 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         // Release lot reservations
         for (const res of existing.ProductionReqLotReservations) {
           if (!res.IsReleased) {
+            const lot = await tx.inventoryLots.findUnique({ where: { LotId: res.LotId } });
+            const currentReserved = Number(lot?.ReservedQuantity || 0);
+            const toDeduct = Number(res.ReservedQuantity);
+            const safeReserved = Math.max(0, currentReserved - toDeduct);
+
             await tx.inventoryLots.update({
               where: { LotId: res.LotId },
-              data: { ReservedQuantity: { decrement: res.ReservedQuantity } },
+              data: { ReservedQuantity: safeReserved },
             });
             await tx.productionReqLotReservations.update({
               where: { ReservationId: res.ReservationId },
@@ -240,9 +250,14 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
         // Release old reservations
         for (const res of existing.ProductionReqLotReservations) {
           if (!res.IsReleased) {
+            const lot = await tx.inventoryLots.findUnique({ where: { LotId: res.LotId } });
+            const currentReserved = Number(lot?.ReservedQuantity || 0);
+            const toDeduct = Number(res.ReservedQuantity);
+            const safeReserved = Math.max(0, currentReserved - toDeduct);
+
             await tx.inventoryLots.update({
               where: { LotId: res.LotId },
-              data: { ReservedQuantity: { decrement: res.ReservedQuantity } },
+              data: { ReservedQuantity: safeReserved },
             });
           }
         }
@@ -352,9 +367,14 @@ export async function DELETE(request: Request, props: { params: Promise<{ id: st
       // Release any reservations
       for (const res of existing.ProductionReqLotReservations) {
         if (!res.IsReleased) {
+          const lot = await tx.inventoryLots.findUnique({ where: { LotId: res.LotId } });
+          const currentReserved = Number(lot?.ReservedQuantity || 0);
+          const toDeduct = Number(res.ReservedQuantity);
+          const safeReserved = Math.max(0, currentReserved - toDeduct);
+
           await tx.inventoryLots.update({
             where: { LotId: res.LotId },
-            data: { ReservedQuantity: { decrement: res.ReservedQuantity } },
+            data: { ReservedQuantity: safeReserved },
           });
         }
       }

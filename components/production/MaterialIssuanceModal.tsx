@@ -10,6 +10,7 @@ import {
   Camera,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   RefreshCw,
   Barcode,
   X,
@@ -30,28 +31,50 @@ const playBeep = (success: boolean) => {
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
     const audioCtx = new AudioContextClass();
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "sine";
-    if (success) {
-      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
-      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.2);
-    } else {
-      osc.frequency.setValueAtTime(300, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.25);
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.25);
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume();
     }
-  } catch {
-    // blocked or unsupported
+
+    if (success) {
+      // Pleasant supermarket high chime
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+      gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.22);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.22);
+    } else {
+      // Distinct supermarket error buzzer (two low harsh pulses)
+      const now = audioCtx.currentTime;
+
+      const osc1 = audioCtx.createOscillator();
+      const gain1 = audioCtx.createGain();
+      osc1.type = "sawtooth";
+      osc1.frequency.setValueAtTime(200, now);
+      gain1.gain.setValueAtTime(0.25, now);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+      osc1.connect(gain1);
+      gain1.connect(audioCtx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.12);
+
+      const osc2 = audioCtx.createOscillator();
+      const gain2 = audioCtx.createGain();
+      osc2.type = "sawtooth";
+      osc2.frequency.setValueAtTime(160, now + 0.15);
+      gain2.gain.setValueAtTime(0.25, now + 0.15);
+      gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.32);
+      osc2.connect(gain2);
+      gain2.connect(audioCtx.destination);
+      osc2.start(now + 0.15);
+      osc2.stop(now + 0.32);
+    }
+  } catch (e) {
+    console.warn("Audio playback error:", e);
   }
 };
 
@@ -65,8 +88,14 @@ export default function MaterialIssuanceModal({
   const [loading, setLoading] = useState<boolean>(true);
   const [issuing, setIssuing] = useState<boolean>(false);
 
-  // Active target lot for scanning
-  const [activeTargetLot, setActiveTargetLot] = useState<LotReservationDTO | null>(null);
+  // Last scanned item for live supermarket-style feedback
+  const [lastScanned, setLastScanned] = useState<{
+    itemName: string;
+    itemCode: string;
+    lotCode: string;
+    reservedQuantity: number;
+    uom: string;
+  } | null>(null);
   const [cameraVisible, setCameraVisible] = useState<boolean>(true);
 
   // Camera & Scanner State
@@ -77,7 +106,7 @@ export default function MaterialIssuanceModal({
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [hasCamera, setHasCamera] = useState<boolean>(false);
   const [cameraLoading, setCameraLoading] = useState<boolean>(false);
-  const [scanStatus, setScanStatus] = useState<"idle" | "success" | "error">("idle");
+  const [scanStatus, setScanStatus] = useState<"idle" | "success" | "error" | "already_scanned">("idle");
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [timeLeft, setTimeLeft] = useState<number>(60);
   const [isTimedOut, setIsTimedOut] = useState<boolean>(false);
@@ -92,16 +121,7 @@ export default function MaterialIssuanceModal({
         const issData: MaterialIssuanceDTO = res.data.data;
         setIssuance(issData);
 
-        // Auto-select first unverified lot for camera scanning
-        const verifiedIds = new Set(
-          (issData.scans ?? []).filter((s) => s.isVerified).map((s) => s.lotId)
-        );
-        const firstUnverified = (issData.reservations ?? []).find(
-          (r) => !verifiedIds.has(r.lotId)
-        );
-        if (firstUnverified) {
-          setActiveTargetLot(firstUnverified);
-        }
+        // Loaded issuance details
       }
     } catch (err: any) {
       console.error(err);
@@ -239,17 +259,6 @@ export default function MaterialIssuanceModal({
     setCameraVisible(false);
   };
 
-  // Select a specific lot for camera focus
-  const handleFocusLot = (lot: LotReservationDTO) => {
-    setActiveTargetLot(lot);
-    setCameraVisible(true);
-    setScanStatus("idle");
-    setErrorMessage("");
-    if (!hasCamera || isTimedOut) {
-      startCamera();
-    }
-  };
-
   // Parse QR code payload (from Goods & Receiving Stock-In / Put-Away QR code)
   const parseCodeString = (raw: string): string => {
     try {
@@ -265,64 +274,106 @@ export default function MaterialIssuanceModal({
     return String(raw).trim();
   };
 
-  // Verify and record scan against backend
+  // Verify and record scan against backend (Supermarket-style: scans in ANY order)
   const verifyAndRecordScan = async (rawCode: string) => {
     const code = parseCodeString(rawCode);
-    const target = activeTargetLot?.lotCode || "";
 
     if (!code) {
       setScanStatus("error");
-      setErrorMessage("Please scan a valid QR code.");
+      setErrorMessage("Error: QR code cannot be found.");
       playBeep(false);
+      toast.error("Error: QR code cannot be found.");
+      setTimeout(() => setScanStatus("idle"), 1800);
       return;
     }
 
     const trimmedCode = code.toUpperCase();
-    const expected = target.toUpperCase();
+    const reservations = issuance?.reservations ?? [];
 
-    // Check if code matches target lot
-    if (trimmedCode !== expected && !trimmedCode.includes(expected) && !expected.includes(trimmedCode)) {
+    // Find if this scanned QR code matches ANY reserved lot in this issuance
+    const matchingReservation = reservations.find((res) => {
+      const resCode = (res.lotCode || "").toUpperCase();
+      return resCode === trimmedCode || trimmedCode.includes(resCode) || resCode.includes(trimmedCode);
+    });
+
+    if (!matchingReservation) {
       setScanStatus("error");
-      setErrorMessage(`Verification Failed: Scanned code "${code}" does not match required lot "${target}".`);
+      setErrorMessage("Error: QR code cannot be found.");
       playBeep(false);
+      toast.error("Error: QR code cannot be found.");
+      setTimeout(() => setScanStatus("idle"), 1800);
+      return;
+    }
+
+    // Check if this lot was already verified - CANNOT SCAN IT ANYMORE!
+    if (verifiedLotIds.has(matchingReservation.lotId)) {
+      setScanStatus("already_scanned");
+      const alreadyMsg = `Already Scanned: ${matchingReservation.itemName} has already been verified and cannot be scanned again.`;
+      setErrorMessage(alreadyMsg);
+      playBeep(false);
+      toast.error(alreadyMsg);
+      setTimeout(() => {
+        setScanStatus("idle");
+      }, 2000);
       return;
     }
 
     try {
       const res = await api.post(`/api/material-issuances/${issuanceId}/scan`, {
-        qrRaw: rawCode, // Send full QR code payload from Goods & Receiving
-        ingredientId: activeTargetLot?.ingredientId,
+        qrRaw: rawCode,
+        ingredientId: matchingReservation.ingredientId,
         scannedBy: issuance?.issuedBy || "Inventory Manager",
       });
 
       if (res.data?.success && res.data.verified) {
         setScanStatus("success");
         setErrorMessage("");
+        setLastScanned({
+          itemName: matchingReservation.itemName,
+          itemCode: matchingReservation.itemCode || "—",
+          lotCode: matchingReservation.lotCode,
+          reservedQuantity: Number(matchingReservation.reservedQuantity),
+          uom: "kg",
+        });
         playBeep(true);
-        toast.success(`Lot ${target} verified successfully!`);
+        toast.success(`Success: ${matchingReservation.itemName} verified!`);
 
         // Refresh issuance details from backend
         await fetchDetails();
 
+        // Brief delay before camera resumes scanning for next material
         setTimeout(() => {
           setScanStatus("idle");
         }, 1200);
       } else {
         setScanStatus("error");
-        setErrorMessage(res.data?.message || "Lot verification failed.");
+        setErrorMessage("Error: QR code cannot be found.");
         playBeep(false);
+        toast.error("Error: QR code cannot be found.");
+        setTimeout(() => setScanStatus("idle"), 1800);
       }
     } catch (err: any) {
       console.error(err);
       setScanStatus("error");
-      setErrorMessage(err.response?.data?.message || "Verification failed.");
+      setErrorMessage("Error: QR code cannot be found.");
       playBeep(false);
+      toast.error("Error: QR code cannot be found.");
+      setTimeout(() => setScanStatus("idle"), 1800);
     }
   };
 
   // Real-time video frame processing with jsQR
   useEffect(() => {
-    if (!open || !cameraVisible || !hasCamera || isTimedOut || scanStatus === "success" || allVerified) {
+    if (
+      !open ||
+      !cameraVisible ||
+      !hasCamera ||
+      isTimedOut ||
+      scanStatus === "success" ||
+      scanStatus === "error" ||
+      scanStatus === "already_scanned" ||
+      allVerified
+    ) {
       return;
     }
 
@@ -374,7 +425,7 @@ export default function MaterialIssuanceModal({
         animFrameIdRef.current = null;
       }
     };
-  }, [open, cameraVisible, hasCamera, isTimedOut, scanStatus, allVerified, activeTargetLot]);
+  }, [open, cameraVisible, hasCamera, isTimedOut, scanStatus, allVerified, issuance]);
 
   // Final Issue Materials
   const handleIssueMaterials = async () => {
@@ -463,14 +514,6 @@ export default function MaterialIssuanceModal({
                   </p>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                {!isTimedOut && hasCamera && scanStatus !== "success" && (
-                  <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-full border border-border bg-card text-foreground">
-                    0:{String(timeLeft).padStart(2, "0")}
-                  </span>
-                )}
-              </div>
             </div>
 
             {/* Body: 2-Column Responsive Layout */}
@@ -523,7 +566,7 @@ export default function MaterialIssuanceModal({
                 )}
 
                 {/* 4. Scanning Reticle & Laser */}
-                {!isTimedOut && hasCamera && scanStatus !== "success" && (
+                {!isTimedOut && hasCamera && scanStatus === "idle" && (
                   <div className="absolute inset-5 border-2 border-foreground/40 rounded-xl pointer-events-none flex flex-col justify-between p-2">
                     <div className="absolute inset-x-2 top-0 h-0.5 bg-foreground/80 shadow-[0_0_8px_rgba(255,255,255,0.8)] animate-pulse" />
                     <div className="flex justify-between">
@@ -531,8 +574,8 @@ export default function MaterialIssuanceModal({
                       <div className="w-3 h-3 border-t-2 border-r-2 border-foreground" />
                     </div>
                     <div className="text-center">
-                      <span className="text-[9px] uppercase tracking-wider font-mono bg-black/75 text-white px-2 py-0.5 rounded border border-white/20">
-                        {activeTargetLot?.lotCode || "SCAN LOT"}
+                      <span className="text-[9px] uppercase tracking-wider font-mono bg-black/75 text-white px-2.5 py-0.5 rounded border border-white/20">
+                        ALIGN QR CODE
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -548,55 +591,101 @@ export default function MaterialIssuanceModal({
                     <div className="w-10 h-10 rounded-full bg-foreground text-background flex items-center justify-center">
                       <CheckCircle2 className="w-6 h-6" />
                     </div>
-                    <p className="text-xs font-bold text-foreground">Lot Verified!</p>
-                    <p className="text-[11px] text-muted-foreground font-mono">{activeTargetLot?.lotCode}</p>
+                    <p className="text-xs font-bold text-foreground">Success: Material Verified!</p>
+                    <p className="text-[11px] text-muted-foreground font-mono">
+                      {lastScanned?.itemName} • {lastScanned?.lotCode}
+                    </p>
+                  </div>
+                )}
+
+                {/* 6. Already Scanned Overlay */}
+                {scanStatus === "already_scanned" && (
+                  <div className="absolute inset-0 bg-background/95 backdrop-blur-xs flex flex-col items-center justify-center gap-2 animate-in fade-in z-20 p-4 text-center">
+                    <div className="w-10 h-10 rounded-full bg-destructive/15 text-destructive border border-destructive/20 flex items-center justify-center">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs font-bold text-foreground">Already Scanned</p>
+                    <p className="text-[11px] text-muted-foreground max-w-[220px]">
+                      {errorMessage || "This material has already been verified and cannot be scanned again."}
+                    </p>
+                  </div>
+                )}
+
+                {/* 7. Error Overlay */}
+                {scanStatus === "error" && (
+                  <div className="absolute inset-0 bg-background/95 backdrop-blur-xs flex flex-col items-center justify-center gap-2 animate-in fade-in z-20 p-4 text-center">
+                    <div className="w-10 h-10 rounded-full bg-destructive/15 text-destructive border border-destructive/20 flex items-center justify-center">
+                      <AlertCircle className="w-6 h-6" />
+                    </div>
+                    <p className="text-xs font-bold text-foreground">Scan Error</p>
+                    <p className="text-[11px] text-muted-foreground max-w-[220px]">
+                      {errorMessage || "Error: QR code cannot be found."}
+                    </p>
                   </div>
                 )}
               </div>
 
-              {/* Right Column: Target Lot Details + Close & Rescan Buttons */}
+              {/* Right Column: Simple Scanner Monitor + Controls */}
               <div className="space-y-3">
-                <div className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-2">
-                  <div className="text-[11px] text-muted-foreground uppercase font-bold tracking-wider">
-                    Current Lot Verification Target
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-sm text-foreground">{activeTargetLot?.itemName || "Select Lot"}</div>
-                      <div className="text-xs font-mono text-muted-foreground">Supply No: {activeTargetLot?.itemCode || "—"}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-mono text-sm font-bold text-foreground">{activeTargetLot?.reservedQuantity} kg</div>
-                      <div className="text-[11px] text-muted-foreground">Reserved</div>
-                    </div>
-                  </div>
-                  <div className="pt-2 flex items-center justify-between border-t border-border/50 text-xs">
-                    <span className="text-muted-foreground font-medium">Target Lot:</span>
-                    <span className="font-mono font-bold text-foreground bg-muted px-2.5 py-0.5 rounded border border-border">
-                      {activeTargetLot?.lotCode || "—"}
+                <div className="p-3 rounded-xl border border-border bg-muted/20 space-y-2.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-foreground animate-pulse" />
+                      QR Scanner
+                    </span>
+                    <span className="font-mono text-[11px] px-2 py-0.5 rounded-md bg-muted border border-border text-foreground font-semibold">
+                      {totalLots - verifiedCount} remaining
                     </span>
                   </div>
+
+                  {lastScanned ? (
+                    <div className="p-2.5 rounded-lg bg-card border border-border space-y-1 animate-in fade-in text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-foreground">{lastScanned.itemName}</span>
+                        <span className="text-[10px] font-semibold bg-foreground text-background px-2 py-0.5 rounded-full">
+                          Success
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground font-mono flex items-center justify-between">
+                        <span>Lot: {lastScanned.lotCode}</span>
+                        <span>{lastScanned.reservedQuantity} kg</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-3 px-2 text-center text-xs text-muted-foreground">
+                      Ready to scan. Point camera at packaging QR code.
+                    </div>
+                  )}
                 </div>
 
                 {/* Status Feedback Banners */}
+                {scanStatus === "already_scanned" && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl border border-destructive/30 bg-destructive/10 text-foreground text-xs animate-shake">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-destructive" />
+                    <span className="font-semibold">{errorMessage || "Already Scanned: This material cannot be scanned again."}</span>
+                  </div>
+                )}
+
                 {scanStatus === "error" && (
-                  <div className="flex items-start gap-2 p-3 rounded-xl border border-destructive/30 bg-destructive/10 text-foreground text-xs animate-shake">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-foreground" />
-                    <span className="text-[11px]">{errorMessage}</span>
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl border border-destructive/30 bg-destructive/10 text-foreground text-xs animate-shake">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-destructive" />
+                    <span className="font-semibold">{errorMessage || "Error: QR code cannot be found."}</span>
                   </div>
                 )}
 
                 {scanStatus === "success" && (
-                  <div className="flex items-center gap-2 p-3 rounded-xl border border-border bg-muted text-foreground text-xs animate-in fade-in">
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl border border-border bg-muted text-foreground text-xs animate-in fade-in">
                     <CheckCircle2 className="w-4 h-4 shrink-0 text-foreground" />
-                    <span className="text-[11px] font-semibold">Lot successfully verified!</span>
+                    <span className="font-semibold">
+                      Success: {lastScanned ? `${lastScanned.itemName} verified!` : "Material verified!"}
+                    </span>
                   </div>
                 )}
 
                 {scanStatus === "idle" && !isTimedOut && (
-                  <div className="p-3 rounded-xl border border-border bg-card text-xs text-muted-foreground flex items-center gap-2">
+                  <div className="p-2.5 rounded-xl border border-border bg-card text-xs text-muted-foreground flex items-center gap-2">
                     <Barcode className="w-4 h-4 text-foreground shrink-0 animate-pulse" />
-                    <span className="text-[11px]">Awaiting QR code scan from Goods & Receiving...</span>
+                    <span className="text-[11px]">Ready to scan...</span>
                   </div>
                 )}
 
@@ -705,15 +794,14 @@ export default function MaterialIssuanceModal({
                 <tbody className="divide-y divide-border">
                   {issuance?.reservations?.map((res) => {
                     const isVerified = verifiedLotIds.has(res.lotId);
-                    const isTarget = activeTargetLot?.lotId === res.lotId;
+                    const isJustVerified = lastScanned?.lotCode === res.lotCode;
 
                     return (
                       <tr
                         key={res.reservationId}
-                        onClick={() => !isVerified && handleFocusLot(res)}
                         className={`hover:bg-muted/10 transition-colors ${
-                          !isVerified ? "cursor-pointer" : ""
-                        } ${isTarget && !isVerified ? "bg-muted/20" : ""}`}
+                          isJustVerified ? "bg-muted/30" : ""
+                        }`}
                       >
                         {/* Ingredient Name */}
                         <td className="py-3 px-4 font-semibold text-foreground">
@@ -742,14 +830,16 @@ export default function MaterialIssuanceModal({
                           {res.expiryDate ? new Date(res.expiryDate).toLocaleDateString() : "—"}
                         </td>
 
-                        {/* Status Column: Checkmark when verified, blank otherwise as requested */}
+                        {/* Status Column: Checkmark when verified, Pending Scan otherwise */}
                         <td className="py-3 px-4 text-center whitespace-nowrap">
                           {isVerified || isAlreadyIssued ? (
                             <span className="inline-flex items-center text-[11px] font-semibold text-background bg-foreground border border-foreground px-2.5 py-0.5 rounded-full">
                               ✓ Verified
                             </span>
                           ) : (
-                            <span className="text-muted-foreground text-xs font-mono">—</span>
+                            <span className="inline-flex items-center text-[11px] font-medium text-muted-foreground bg-muted/50 border border-border px-2.5 py-0.5 rounded-full">
+                              Pending Scan
+                            </span>
                           )}
                         </td>
                       </tr>

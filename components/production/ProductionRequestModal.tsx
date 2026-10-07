@@ -11,6 +11,10 @@ import { toast } from "sonner";
 import {
   AlertTriangle,
   Package,
+  CheckCircle2,
+  Clock,
+  XCircle,
+  Info,
 } from "lucide-react";
 import { ProductionRequestEntity, LotSuggestionsResponse } from "./types";
 import { ProductionActionModal, ProductionActionType } from "./ProductionActionModal";
@@ -553,6 +557,52 @@ export default function ProductionRequestModal({
           </div>
         )}
 
+        {/* Informative Status Notification Banners for View Mode */}
+        {isViewMode && initialRequest?.status === "Rejected" && (
+          <div className="p-4 rounded-xl border border-border bg-muted/30 flex items-start gap-3">
+            <XCircle className="w-5 h-5 text-foreground shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-xs font-bold text-foreground">Production Request Rejected</h4>
+              <p className="text-xs text-muted-foreground">
+                This request was rejected by <strong className="text-foreground">{initialRequest.rejectedBy || "Admin"}</strong>
+                {initialRequest.rejectedAt ? ` on ${new Date(initialRequest.rejectedAt).toLocaleDateString()}` : ""}.
+                {initialRequest.rejectionReason && (
+                  <span> Reason: &quot;{initialRequest.rejectionReason}&quot;.</span>
+                )}
+              </p>
+              <p className="text-[11px] text-muted-foreground font-medium">
+                ✓ All reserved ingredient lots for this request have been released back to available inventory and are available for new production requests.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isViewMode && initialRequest?.status === "Approved" && (
+          <div className="p-4 rounded-xl border border-border bg-muted/20 flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-foreground shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <h4 className="text-xs font-bold text-foreground">Production Request Approved &amp; Lots Finalized</h4>
+              <p className="text-xs text-muted-foreground">
+                Approved by <strong className="text-foreground">{initialRequest.approvedBy || "Admin"}</strong>
+                {initialRequest.approvedAt ? ` on ${new Date(initialRequest.approvedAt).toLocaleDateString()}` : ""}.
+                The reserved ingredient lots shown below are locked for this request and cannot be recommended to other requests. They will be consumed upon Material Issuance.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isViewMode && initialRequest?.status === "Pending Approval" && (
+          <div className="p-4 rounded-xl border border-border bg-muted/20 flex items-start gap-3">
+            <Clock className="w-5 h-5 text-foreground shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <h4 className="text-xs font-bold text-foreground">Pending Approval — Lots Reserved</h4>
+              <p className="text-xs text-muted-foreground">
+                The ingredient lots shown below are actively reserved for this request and cannot be recommended or assigned to other production requests. If rejected by an admin, the reservations will be released back to available inventory.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Form Inputs (Organized Top Section) */}
         <div className="space-y-4">
           {/* Row 1: Finished Product, Variant, Recipe / BOM */}
@@ -900,15 +950,28 @@ export default function ProductionRequestModal({
                     <th className="py-2.5 px-4 font-semibold text-muted-foreground">Unit of Measure</th>
                     <th className="py-2.5 px-4 font-semibold text-muted-foreground text-right">Required Quantity</th>
                     <th className="py-2.5 px-4 font-semibold text-muted-foreground text-right">Available in Stock</th>
-                    <th className="py-2.5 px-4 font-semibold text-muted-foreground min-w-[160px]">Suggested Lots</th>
+                    <th className="py-2.5 px-4 font-semibold text-muted-foreground min-w-[160px]">
+                      {isViewMode
+                        ? initialRequest?.status === "Rejected"
+                          ? "Released Lots"
+                          : initialRequest?.status === "Approved"
+                          ? "Confirmed Lots"
+                          : "Reserved Lots"
+                        : "Suggested Lots"}
+                    </th>
                     <th className="py-2.5 px-4 font-semibold text-muted-foreground min-w-[120px]">Expiry Date</th>
                     <th className="py-2.5 px-4 font-semibold text-muted-foreground text-center">Stock Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
                   {lotSuggestions?.ingredients?.map((item) => {
-                    // Strictly filter out lots that have 0 suggested quantity!
-                    const activeLots = (item.lots || []).filter((l) => Number(l.suggestedQuantity) > 0);
+                    const isRejected = initialRequest?.status === "Rejected";
+                    const isApproved = initialRequest?.status === "Approved";
+                    const isPending = initialRequest?.status === "Pending Approval";
+
+                    // Active lots have suggested/reserved quantity > 0
+                    const activeLots = (item.lots || []).filter((l: any) => Number(l.suggestedQuantity) > 0);
+                    const releasedLots = (item.lots || []).filter((l: any) => l.isReleased);
                     const hasShortfall = item.hasShortfall || item.totalAvailable < item.requiredQuantity;
 
                     return (
@@ -938,9 +1001,27 @@ export default function ProductionRequestModal({
                           {item.totalAvailable.toFixed(2)}
                         </td>
 
-                        {/* Suggested Lots (Displays lot code and assigned quantity per lot) */}
+                        {/* Suggested / Reserved / Released Lots */}
                         <td className="py-3 px-4 min-w-[180px]">
-                          {activeLots.length > 0 ? (
+                          {isRejected ? (
+                            releasedLots.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {releasedLots.map((l: any) => (
+                                  <div
+                                    key={l.lotId}
+                                    className="font-mono text-[11px] font-medium text-muted-foreground bg-muted/40 px-2 py-0.5 rounded border border-border inline-flex items-center gap-1.5 line-through opacity-80"
+                                  >
+                                    <span>{l.lotCode}</span>
+                                    <span className="font-normal whitespace-nowrap">
+                                      ({Number(l.releasedQuantity || 0).toFixed(2)} {item.uomAbbr} released)
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground italic">None (Released)</span>
+                            )
+                          ) : activeLots.length > 0 ? (
                             <div className="space-y-1.5">
                               {activeLots.map((l) => (
                                 <div
@@ -961,9 +1042,9 @@ export default function ProductionRequestModal({
 
                         {/* Expiry Date Column */}
                         <td className="py-3 px-4 min-w-[120px] whitespace-nowrap">
-                          {activeLots.length > 0 ? (
+                          {(isRejected && releasedLots.length > 0 ? releasedLots : activeLots).length > 0 ? (
                             <div className="space-y-1.5">
-                              {activeLots.map((l) => (
+                              {(isRejected && releasedLots.length > 0 ? releasedLots : activeLots).map((l: any) => (
                                 <div key={l.lotId} className="font-mono text-[11px] text-muted-foreground py-0.5">
                                   {l.expiryDate ? new Date(l.expiryDate).toLocaleDateString() : "—"}
                                 </div>
@@ -976,7 +1057,19 @@ export default function ProductionRequestModal({
 
                         {/* Stock Status (Strictly Monochromatic) */}
                         <td className="py-3 px-4 text-center whitespace-nowrap">
-                          {hasShortfall ? (
+                          {isRejected ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground bg-muted border border-border px-2.5 py-0.5 rounded-full">
+                              Released to Stock
+                            </span>
+                          ) : isApproved ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-foreground bg-muted border border-border px-2.5 py-0.5 rounded-full">
+                              Reserved &amp; Confirmed
+                            </span>
+                          ) : isPending ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-foreground bg-muted border border-border px-2.5 py-0.5 rounded-full">
+                              Reserved (Pending)
+                            </span>
+                          ) : hasShortfall ? (
                             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-background bg-foreground border border-foreground px-2.5 py-0.5 rounded-full">
                               Shortfall: {item.shortfallQuantity.toFixed(2)} {item.uomAbbr}
                             </span>

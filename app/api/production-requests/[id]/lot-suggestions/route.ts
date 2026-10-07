@@ -9,7 +9,7 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
   try {
     let recipeId: number | null = null;
     let quantity: number = 0;
-    let existingReservations: { [key: string]: number } = {};
+    let prodReq: any = null;
 
     if (paramId === "preview" || paramId === "new") {
       recipeId = Number(searchParams.get("recipeId"));
@@ -20,10 +20,14 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
         return NextResponse.json({ success: false, message: "Invalid ID." }, { status: 400 });
       }
 
-      const prodReq = await prisma.productionRequests.findUnique({
+      prodReq = await prisma.productionRequests.findUnique({
         where: { ProdReqId: id },
         include: {
-          ProductionReqLotReservations: true,
+          ProductionReqLotReservations: {
+            include: {
+              InventoryLots: true,
+            },
+          },
         },
       });
 
@@ -33,14 +37,6 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
 
       recipeId = searchParams.get("recipeId") ? Number(searchParams.get("recipeId")) : prodReq.RecipeId;
       quantity = searchParams.get("quantity") ? Number(searchParams.get("quantity")) : Number(prodReq.Quantity);
-
-      // Track existing reservations made by this request
-      for (const res of prodReq.ProductionReqLotReservations) {
-        if (!res.IsReleased) {
-          const key = `${res.IngredientId}_${res.LotId}`;
-          existingReservations[key] = (existingReservations[key] || 0) + Number(res.ReservedQuantity);
-        }
-      }
     }
 
     if (!recipeId) {
@@ -68,53 +64,127 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     }
 
     const multiplier = Number(recipe.OutputQuantity) > 0 ? quantity / Number(recipe.OutputQuantity) : 1;
+    const isExistingReq = Boolean(prodReq);
+    const isReqReleased = prodReq?.Status === "Rejected" || prodReq?.Status === "Cancelled";
 
     const suggestions = [];
 
     for (const ing of recipe.RecipeIngredients) {
       const requiredQty = Number(ing.StandardQuantity) * multiplier;
       let stillNeeded = requiredQty;
-
-      // Query available lots
-      const lots = await prisma.inventoryLots.findMany({
-        where: {
-          ItemId: ing.ItemId,
-          Status: { in: ["Available", "Active"] },
-          QuantityRemaining: { gt: 0 },
-        },
-        orderBy: [
-          { ExpiryDate: "asc" },
-          { ReceivedDate: "asc" },
-        ],
-      });
-
       const lotSuggestions = [];
       let totalAvailable = 0;
+      const reservedLotIds = new Set<number>();
 
-      for (const lot of lots) {
-        const remaining = Number(lot.QuantityRemaining);
-        const reserved = Number(lot.ReservedQuantity || 0);
-        const myRes = existingReservations[`${ing.IngredientId}_${lot.LotId}`] || 0;
-        const availableInLot = Math.max(0, remaining - (reserved - myRes));
+      // 1. If this is an existing request that is not released, start with its ACTUAL active reservations
+      if (isExistingReq && !isReqReleased) {
+        const myActiveReservations = (prodReq.ProductionReqLotReservations || []).filter(
+          (r: any) => !r.IsReleased && r.IngredientId === ing.IngredientId
+        );
 
-        totalAvailable += availableInLot;
+        for (const res of myActiveReservations) {
+          const lot = res.InventoryLots;
+          if (!lot) continue;
+          reservedLotIds.add(lot.LotId);
 
-        const suggestedQty = Math.min(stillNeeded, availableInLot);
-        if (suggestedQty > 0) {
-          stillNeeded -= suggestedQty;
+          const remaining = Number(lot.QuantityRemaining);
+          const reserved = Number(lot.ReservedQuantity || 0);
+          const reservedByThis = Number(res.ReservedQuantity);
+
+          // Available for this request includes its own reservation
+          const availableInLot = Math.max(0, remaining - (reserved - reservedByThis));
+          totalAvailable += availableInLot;
+
+          // The assigned quantity is strictly what this request reserved
+          const suggestedQty = reservedByThis;
+          stillNeeded = Math.max(0, stillNeeded - suggestedQty);
+
+          lotSuggestions.push({
+            lotId: lot.LotId,
+            lotCode: lot.LotCode,
+            quantityRemaining: remaining,
+            reservedQuantity: reserved,
+            availableQuantity: availableInLot,
+            suggestedQuantity: suggestedQty,
+            expiryDate: lot.ExpiryDate ? lot.ExpiryDate.toISOString() : null,
+            receivedDate: lot.ReceivedDate ? lot.ReceivedDate.toISOString() : null,
+            status: lot.Status,
+          });
         }
+      }
 
-        lotSuggestions.push({
-          lotId: lot.LotId,
-          lotCode: lot.LotCode,
-          quantityRemaining: remaining,
-          reservedQuantity: reserved,
-          availableQuantity: availableInLot,
-          suggestedQuantity: suggestedQty,
-          expiryDate: lot.ExpiryDate ? lot.ExpiryDate.toISOString() : null,
-          receivedDate: lot.ReceivedDate ? lot.ReceivedDate.toISOString() : null,
-          status: lot.Status,
+      // 2. Query available unreserved lots using FEFO/FIFO for remaining needed stock
+      // (For preview, this allocates all lots; for existing request, only if there was a shortfall)
+      if (stillNeeded > 0) {
+        const otherLots = await prisma.inventoryLots.findMany({
+          where: {
+            ItemId: ing.ItemId,
+            LotId: reservedLotIds.size > 0 ? { notIn: Array.from(reservedLotIds) } : undefined,
+            Status: { in: ["Available", "Active"] },
+            QuantityRemaining: { gt: 0 },
+          },
+          orderBy: [
+            { ExpiryDate: "asc" },
+            { ReceivedDate: "asc" },
+          ],
         });
+
+        for (const lot of otherLots) {
+          const remaining = Number(lot.QuantityRemaining);
+          const reserved = Number(lot.ReservedQuantity || 0);
+          const availableInLot = Math.max(0, remaining - reserved);
+          if (availableInLot <= 0) continue;
+
+          totalAvailable += availableInLot;
+
+          // If request is already released (Rejected/Cancelled), do not suggest new allocations
+          const suggestedQty = isReqReleased ? 0 : Math.min(stillNeeded, availableInLot);
+          if (suggestedQty > 0) {
+            stillNeeded -= suggestedQty;
+          }
+
+          lotSuggestions.push({
+            lotId: lot.LotId,
+            lotCode: lot.LotCode,
+            quantityRemaining: remaining,
+            reservedQuantity: reserved,
+            availableQuantity: availableInLot,
+            suggestedQuantity: suggestedQty,
+            expiryDate: lot.ExpiryDate ? lot.ExpiryDate.toISOString() : null,
+            receivedDate: lot.ReceivedDate ? lot.ReceivedDate.toISOString() : null,
+            status: lot.Status,
+          });
+        }
+      }
+
+      // If the request was released, also display what was previously released for full history
+      if (isExistingReq && isReqReleased) {
+        const releasedReservations = (prodReq.ProductionReqLotReservations || []).filter(
+          (r: any) => r.IsReleased && r.IngredientId === ing.IngredientId
+        );
+        for (const res of releasedReservations) {
+          const lot = res.InventoryLots;
+          if (!lot || reservedLotIds.has(lot.LotId)) continue;
+          reservedLotIds.add(lot.LotId);
+
+          const remaining = Number(lot.QuantityRemaining);
+          const reserved = Number(lot.ReservedQuantity || 0);
+          const availableInLot = Math.max(0, remaining - reserved);
+
+          lotSuggestions.push({
+            lotId: lot.LotId,
+            lotCode: lot.LotCode,
+            quantityRemaining: remaining,
+            reservedQuantity: reserved,
+            availableQuantity: availableInLot,
+            suggestedQuantity: 0,
+            isReleased: true,
+            releasedQuantity: Number(res.ReservedQuantity),
+            expiryDate: lot.ExpiryDate ? lot.ExpiryDate.toISOString() : null,
+            receivedDate: lot.ReceivedDate ? lot.ReceivedDate.toISOString() : null,
+            status: lot.Status,
+          });
+        }
       }
 
       const shortfallQty = Math.max(0, requiredQty - totalAvailable);
