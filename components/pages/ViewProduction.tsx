@@ -6,11 +6,13 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import ProductionRequestsTab from "@/components/production/ProductionRequestsTab";
 import MaterialIssuanceTab from "@/components/production/MaterialIssuanceTab";
 import ProductionTrackingTab from "@/components/production/ProductionTrackingTab";
+import ProductionQaTab from "@/components/production/ProductionQaTab";
+import ProductionStockInTab from "@/components/production/ProductionStockInTab";
 import ConfigurationTab from "@/components/production/ConfigurationTab";
 import LossTab from "@/components/production/LossTab";
 
 export default function ProductionPage() {
-  const { user, activeAccount } = useAuth();
+  const { user, activeAccount, switchAccount } = useAuth();
 
   const isInventoryManager = Boolean(
     activeAccount === "inventory_manager" ||
@@ -27,6 +29,14 @@ export default function ProductionPage() {
     user?.roles?.includes("Head Cook")
   );
 
+  const isQaOfficer = Boolean(
+    activeAccount === "qa_officer" ||
+    user?.email?.toLowerCase() === "qaofficer@r3b2p.com" ||
+    user?.username === "ramon" ||
+    user?.roles?.includes("QA Officer") ||
+    user?.roles?.includes("Quality Assurance")
+  );
+
   const isAdmin = Boolean(
     activeAccount === "admin" ||
     user?.email?.toLowerCase() === "admin@r3b2p.com" ||
@@ -34,17 +44,24 @@ export default function ProductionPage() {
   );
 
   // Default active tab based on role
-  const [activeTab, setActiveTab] = useState<string>("requests");
+  const [activeTab, setActiveTab] = useState<string>(
+    isQaOfficer ? "qa" : "requests"
+  );
 
   // Cross-tab state
   const [targetIssuanceId, setTargetIssuanceId] = useState<number | null>(null);
   const [trackingBatchId, setTrackingBatchId] = useState<number | null>(null);
 
+  // Switch to QA Officer account handler
+  const handleSwitchToQaOfficer = () => {
+    switchAccount("qa_officer");
+    setActiveTab("qa");
+  };
+
   // Navigate from Production Requests -> Material Issuance
   const handleNavigateToIssuance = async (prodReqId?: number) => {
     if (prodReqId) {
       try {
-        // Initialize or load issuance for this request
         const res = await fetch("/api/material-issuances", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -67,13 +84,16 @@ export default function ProductionPage() {
     setActiveTab("tracking");
   };
 
-  // Define tabs based on role - NO MORE ready for production page!
+  // Define tabs based on role
   let tabs: Array<{ key: string; label: string }> = [];
 
-  if (isInventoryManager && !isAdmin) {
+  if (isQaOfficer && !isAdmin) {
+    tabs = [{ key: "qa", label: "Quality Assurance" }];
+  } else if (isInventoryManager && !isAdmin) {
     tabs = [
       { key: "requests", label: "Production Requests" },
       { key: "issuance", label: "Material Issuance" },
+      { key: "stockin", label: "Stock-In" },
       { key: "configuration", label: "Configuration" },
     ];
   } else if (isHeadCook && !isAdmin) {
@@ -87,6 +107,8 @@ export default function ProductionPage() {
       { key: "requests", label: "Production Requests" },
       { key: "issuance", label: "Material Issuance" },
       { key: "tracking", label: "Production Tracking" },
+      { key: "qa", label: "Quality Assurance" },
+      { key: "stockin", label: "Stock-In" },
       { key: "configuration", label: "Configuration" },
       { key: "loss", label: "Loss" },
     ];
@@ -94,14 +116,16 @@ export default function ProductionPage() {
 
   // Ensure active tab is valid for current role
   const isCurrentTabValid = tabs.some((t) => t.key === activeTab);
-  const currentTab = isCurrentTabValid ? activeTab : tabs[0]?.key || "requests";
+  const currentTab = isCurrentTabValid ? activeTab : tabs[0]?.key || (isQaOfficer ? "qa" : "requests");
 
   return (
     <div className="w-full min-h-full py-8 px-6 md:px-8 space-y-6 animate-page-in">
       <PageHeader
         title="Production & Quality"
         description={
-          isInventoryManager && !isAdmin
+          isQaOfficer && !isAdmin
+            ? "Inspect finished production batches, verify sensory attributes and packaging, and approve stock-in."
+            : isInventoryManager && !isAdmin
             ? "Create production requests with automated FIFO/FEFO lot reservations, scan raw materials, and issue supplies."
             : isHeadCook && !isAdmin
             ? "View ready for production requests, start authorized kitchen batches, track stage progression, and record finished goods."
@@ -146,9 +170,7 @@ export default function ProductionPage() {
 
       {/* Tab 2: Material Issuance (Inventory Manager & Admin) */}
       {currentTab === "issuance" && (
-        <MaterialIssuanceTab
-          initialIssuanceId={targetIssuanceId}
-        />
+        <MaterialIssuanceTab initialIssuanceId={targetIssuanceId} />
       )}
 
       {/* Tab 3: Production Tracking (Head Cook & Admin) */}
@@ -157,13 +179,31 @@ export default function ProductionPage() {
           initialBatchId={trackingBatchId}
           onNavigateToBatches={() => setActiveTab("requests")}
           currentUser={user?.username || "Head Cook"}
+          onSwitchToQaOfficer={handleSwitchToQaOfficer}
         />
       )}
 
-      {/* Tab 5: Configuration (Admin) */}
+      {/* Tab 4: Quality Assurance (QA Officer & Admin view-only) */}
+      {currentTab === "qa" && (
+        <ProductionQaTab
+          isQaOfficer={isQaOfficer}
+          isAdmin={isAdmin}
+          currentUser={user?.firstName ? `${user.firstName} ${user.lastName}` : "Ramon Dela Cruz"}
+          onSwitchToQaOfficer={handleSwitchToQaOfficer}
+        />
+      )}
+
+      {/* Tab 5: Stock-In (Inventory Manager & Admin) */}
+      {currentTab === "stockin" && (
+        <ProductionStockInTab
+          currentUser={user?.username || "Inventory Manager"}
+        />
+      )}
+
+      {/* Tab 6: Configuration (Admin) */}
       {currentTab === "configuration" && <ConfigurationTab />}
 
-      {/* Tab 6: Loss (Admin) */}
+      {/* Tab 7: Loss (Admin) */}
       {currentTab === "loss" && <LossTab />}
     </div>
   );

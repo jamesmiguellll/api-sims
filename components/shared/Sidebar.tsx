@@ -143,12 +143,12 @@ export function Sidebar() {
 
         {/* ── Nav Content ── */}
         <SidebarContent className="px-2 py-3 overflow-y-auto flex-1 custom-scrollbar">
-          {(activeAccount === "head_cook"
+          {(activeAccount === "head_cook" || activeAccount === "qa_officer"
             ? navGroups
                 .map((group) => ({
                   ...group,
                   items: group.items.filter(
-                    (item) => item.href === "/inventory" || item.href === "/production-quality"
+                    (item) => item.href === "/production-quality" || (activeAccount === "head_cook" && item.href === "/inventory")
                   ),
                 }))
                 .filter((group) => group.items.length > 0)
@@ -190,7 +190,7 @@ export function Sidebar() {
 
         {/* ── Footer ── */}
         <SidebarFooter className="px-2 py-2 border-t border-border/60 space-y-1">
-          {activeAccount !== "head_cook" && (
+          {activeAccount !== "head_cook" && activeAccount !== "qa_officer" && (
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton

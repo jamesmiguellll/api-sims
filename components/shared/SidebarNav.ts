@@ -122,6 +122,12 @@ export const accounts: AccountItem[] = [
     email: "scmsuser@r3b2p.com",
   },
   {
+    id: "qa_officer",
+    name: "Ramon Dela Cruz",
+    role: "QA Officer",
+    email: "qaofficer@r3b2p.com",
+  },
+  {
     id: "admin",
     name: "Admin Account",
     role: "Admin",

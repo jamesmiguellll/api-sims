@@ -1,56 +1,30 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/shared/StatusBadge";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
-import {
-  Layers,
-  Clock,
-  ArrowRight,
-  CheckCircle2,
-  Package,
-  Calendar,
-  User,
-  Sparkles,
-  ChevronRight,
-  FileCheck2,
-  RefreshCw,
-} from "lucide-react";
 import { ProductionBatchEntity } from "./types";
-import BatchCompletionModal from "./BatchCompletionModal";
-
-export const STAGES = [
-  "Pre-Production",
-  "Peeling",
-  "Steaming",
-  "Mixing/Grinding",
-  "Cooking",
-  "Cooling",
-  "Packaging",
-  "Completed",
-] as const;
+import ProductionBatchDetailView from "./ProductionBatchDetailView";
 
 interface ProductionTrackingTabProps {
   initialBatchId?: number | null;
   onNavigateToBatches?: () => void;
   currentUser?: string;
+  onSwitchToQaOfficer?: () => void;
 }
 
 export default function ProductionTrackingTab({
   initialBatchId,
-  onNavigateToBatches,
-  currentUser,
+  currentUser = "Head Cook",
+  onSwitchToQaOfficer,
 }: ProductionTrackingTabProps) {
   const [batches, setBatches] = useState<ProductionBatchEntity[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedBatchId, setSelectedBatchId] = useState<number | null>(initialBatchId ?? null);
-  const [stageNotes, setStageNotes] = useState<string>("");
-  const [advancing, setAdvancing] = useState<boolean>(false);
-  const [showCompletionModal, setShowCompletionModal] = useState<boolean>(false);
-  const [statusFilter, setStatusFilter] = useState<"active" | "completed">("active");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [subTab, setSubTab] = useState<"active" | "rejected">("active");
 
   const fetchBatches = useCallback(async () => {
     setLoading(true);
@@ -58,11 +32,6 @@ export default function ProductionTrackingTab({
       const res = await api.get("/api/ProductionBatches");
       if (res.data && Array.isArray(res.data)) {
         setBatches(res.data);
-        if (!selectedBatchId && res.data.length > 0) {
-          // Select first in-production batch or first batch
-          const active = res.data.find((b: ProductionBatchEntity) => b.status === "In Production");
-          setSelectedBatchId(active ? active.batchId : res.data[0].batchId);
-        }
       }
     } catch (err: any) {
       console.error(err);
@@ -70,7 +39,7 @@ export default function ProductionTrackingTab({
     } finally {
       setLoading(false);
     }
-  }, [selectedBatchId]);
+  }, []);
 
   useEffect(() => {
     fetchBatches();
@@ -82,56 +51,53 @@ export default function ProductionTrackingTab({
     }
   }, [initialBatchId]);
 
-  const selectedBatch = batches.find((b) => b.batchId === selectedBatchId) || null;
+  // Active Batches = All batches in production or packaging (excluding Rejected and fully Completed)
+  const activeBatches = useMemo(() => {
+    return batches.filter(
+      (b) => b.status !== "Rejected" && b.status !== "Completed" && b.status !== "Stocked In"
+    );
+  }, [batches]);
 
-  const currentStageIndex = selectedBatch ? STAGES.indexOf(selectedBatch.currentStage as any) : -1;
-  const isLastStage = currentStageIndex === STAGES.length - 2; // "Packaging"
-  const isCompleted = selectedBatch?.status === "Completed" || selectedBatch?.currentStage === "Completed";
-  const nextStageName = currentStageIndex >= 0 && currentStageIndex < STAGES.length - 1 ? STAGES[currentStageIndex + 1] : null;
+  // Rejected Batches = Batches rejected during production or packaging
+  const rejectedBatches = useMemo(() => {
+    return batches.filter((b) => b.status === "Rejected");
+  }, [batches]);
 
-  // Advance Stage
-  const handleAdvanceStage = async () => {
-    if (!selectedBatch || !nextStageName) return;
+  const displayedBatches = useMemo(() => {
+    const list = subTab === "active" ? activeBatches : rejectedBatches;
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return list;
 
-    if (nextStageName === "Completed") {
-      setShowCompletionModal(true);
-      return;
-    }
+    return list.filter(
+      (b) =>
+        b.batchNumber.toLowerCase().includes(q) ||
+        (b.reqNumber && b.reqNumber.toLowerCase().includes(q)) ||
+        b.productName.toLowerCase().includes(q) ||
+        (b.assignedCook && b.assignedCook.toLowerCase().includes(q))
+    );
+  }, [subTab, activeBatches, rejectedBatches, searchQuery]);
 
-    setAdvancing(true);
-    try {
-      const res = await api.patch(`/api/ProductionBatches/${selectedBatch.batchId}/stage`, {
-        stage: nextStageName,
-        notes: stageNotes.trim() || undefined,
-      });
-
-      if (res.data?.success && res.data.data) {
-        toast.success(`Batch advanced to ${nextStageName}!`);
-        setStageNotes("");
-        fetchBatches();
-      } else {
-        toast.error(res.data?.message || "Failed to advance stage.");
-      }
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.response?.data?.message || "An error occurred.");
-    } finally {
-      setAdvancing(false);
-    }
-  };
-
-  const filteredBatches = batches.filter((b) =>
-    statusFilter === "active" ? b.status === "In Production" : b.status === "Completed"
-  );
+  // If a batch is selected, render the dedicated Detail View (split-panel layout matching mockups)
+  if (selectedBatchId) {
+    return (
+      <ProductionBatchDetailView
+        batchId={selectedBatchId}
+        onBack={() => setSelectedBatchId(null)}
+        currentUser={currentUser}
+        onRefreshList={fetchBatches}
+        onSwitchToQaOfficer={onSwitchToQaOfficer}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* ── Header ── */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Production Waterfall Tracking</h2>
+          <h2 className="text-2xl font-bold text-foreground">Production Tracking</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Advance batches sequentially through kitchen stages from Pre-Production to Packaging and Final Inspection.
+            Track active kitchen batches, advance cooking stages, complete packaging, and record batch outcomes.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -139,287 +105,152 @@ export default function ProductionTrackingTab({
             variant="outline"
             size="sm"
             onClick={fetchBatches}
-            className="text-xs h-9 rounded-xl border-border"
+            className="text-xs h-8 rounded-lg border-border hover:bg-muted font-semibold cursor-pointer"
           >
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-            <span>Refresh</span>
+            Refresh
           </Button>
-          {onNavigateToBatches && (
-            <Button
-              onClick={onNavigateToBatches}
-              className="bg-foreground text-background font-semibold text-xs h-9 px-4 rounded-xl hover:bg-foreground/90 transition-colors shadow-sm"
-            >
-              Ready Batches
-            </Button>
-          )}
         </div>
       </div>
 
-      {/* Main Content Layout: Left Sidebar Batch List, Right Detail & Stage Tracker */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Batches List */}
-        <div className="lg:col-span-4 space-y-3">
-          {/* Status Tabs (Active vs Completed) */}
-          <div className="flex rounded-xl bg-muted/40 p-1 border border-border">
-            <button
-              type="button"
-              onClick={() => setStatusFilter("active")}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                statusFilter === "active"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+      {/* ── Subtab Pill Navigation (Active Batches & Rejected Batches) ── */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSubTab("active")}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              subTab === "active"
+                ? "bg-foreground text-background shadow-xs"
+                : "border border-border bg-card text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <span>Active Batches</span>
+            <span
+              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                subTab === "active" ? "bg-background text-foreground" : "bg-muted text-muted-foreground"
               }`}
             >
-              In Production ({batches.filter((b) => b.status === "In Production").length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusFilter("completed")}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                statusFilter === "completed"
-                  ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+              {activeBatches.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSubTab("rejected")}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              subTab === "rejected"
+                ? "bg-foreground text-background shadow-xs"
+                : "border border-border bg-card text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            <span>Rejected Batches</span>
+            <span
+              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                subTab === "rejected" ? "bg-background text-foreground" : "bg-muted text-muted-foreground"
               }`}
             >
-              Completed ({batches.filter((b) => b.status === "Completed").length})
-            </button>
+              {rejectedBatches.length}
+            </span>
+          </button>
+        </div>
+
+        <div className="w-full sm:w-64">
+          <Input
+            placeholder="Search by batch, PR, or product..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="h-8 text-xs border-border bg-card"
+          />
+        </div>
+      </div>
+
+      {/* ── Monochromatic Table of Batches ── */}
+      <div className="border border-border rounded-xl bg-card overflow-hidden">
+        {loading ? (
+          <div className="p-8 text-center text-xs font-mono text-muted-foreground uppercase tracking-widest">
+            Loading batches...
           </div>
-
-          <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-            {filteredBatches.length === 0 ? (
-              <div className="p-8 text-center border border-dashed border-border rounded-xl bg-card text-xs text-muted-foreground">
-                No {statusFilter} batches found.
-              </div>
-            ) : (
-              filteredBatches.map((b) => {
-                const isSelected = b.batchId === selectedBatchId;
-
-                return (
-                  <div
+        ) : displayedBatches.length === 0 ? (
+          <div className="p-12 text-center space-y-2">
+            <p className="text-sm font-semibold text-foreground">
+              {subTab === "active" ? "No active production batches." : "No rejected batches recorded."}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {subTab === "active"
+                ? "When ready for production requests are started, active batches appear here."
+                : "Any rejected cooking or packaging batches will be archived here."}
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <tr>
+                  <th className="py-3 px-4">Batch Number</th>
+                  <th className="py-3 px-4">Request No.</th>
+                  <th className="py-3 px-4">Product Name</th>
+                  <th className="py-3 px-4 text-right">Target Qty</th>
+                  <th className="py-3 px-4">Current Stage</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-4">Assigned Cook</th>
+                  <th className="py-3 px-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {displayedBatches.map((b) => (
+                  <tr
                     key={b.batchId}
                     onClick={() => setSelectedBatchId(b.batchId)}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                      isSelected
-                        ? "bg-card border-foreground shadow-sm ring-1 ring-foreground"
-                        : "bg-card border-border hover:border-foreground/40"
-                    }`}
+                    className="hover:bg-muted/20 transition-colors cursor-pointer group"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-mono font-bold text-xs text-foreground">{b.batchNumber}</div>
-                        <div className="font-semibold text-sm text-foreground mt-0.5">{b.productName}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{b.recipeName}</div>
-                      </div>
-                      <StatusBadge status={b.status} />
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs pt-3 mt-3 border-t border-border">
-                      <span className="font-semibold text-foreground bg-muted/60 px-2 py-0.5 rounded border border-border">
-                        {b.currentStage}
+                    <td className="py-3 px-4 font-mono font-bold text-foreground">
+                      {b.batchNumber}
+                    </td>
+                    <td className="py-3 px-4 font-mono text-muted-foreground">
+                      {b.reqNumber || "—"}
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="font-semibold text-foreground">{b.productName}</div>
+                      {b.variant && (
+                        <div className="text-[11px] text-muted-foreground">{b.variant}</div>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right font-mono font-medium text-foreground">
+                      {Number(b.estimatedQuantity).toLocaleString()} {b.yieldUom || "jars"}
+                    </td>
+                    <td className="py-3 px-4 font-semibold text-foreground">
+                      {b.currentStage || b.stage}
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-border bg-muted/40 text-foreground">
+                        <span className="w-1.5 h-1.5 rounded-full bg-foreground" />
+                        {b.status}
                       </span>
-                      <span className="font-mono font-bold text-foreground">
-                        {b.estimatedQuantity} {b.yieldUom}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                    </td>
+                    <td className="py-3 px-4 text-muted-foreground">
+                      {b.assignedCook || "Head Cook"}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedBatchId(b.batchId);
+                        }}
+                        className="h-7 px-2.5 text-xs font-semibold text-foreground hover:bg-muted"
+                      >
+                        Open Batch →
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
-
-        {/* Right Column: Stage Progress & Action Tracker */}
-        <div className="lg:col-span-8">
-          {selectedBatch ? (
-            <div className="space-y-6">
-              {/* Batch Overview Header Card */}
-              <div className="p-5 rounded-2xl border border-border bg-card shadow-sm space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-xl font-bold text-foreground">{selectedBatch.productName}</h3>
-                      {selectedBatch.variant && (
-                        <span className="text-xs text-muted-foreground font-medium">({selectedBatch.variant})</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono mt-1">
-                      <span>Batch: {selectedBatch.batchNumber}</span>
-                      {selectedBatch.reqNumber && <span>• Req: {selectedBatch.reqNumber}</span>}
-                      <span>• Recipe: {selectedBatch.recipeName}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-sm bg-muted/60 px-3 py-1 rounded-xl border border-border">
-                      Target: {selectedBatch.estimatedQuantity} {selectedBatch.yieldUom}
-                    </span>
-                    <StatusBadge status={selectedBatch.status} />
-                  </div>
-                </div>
-
-                {/* Waterfall Stage Stepper */}
-                <div className="pt-2">
-                  <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3">
-                    Waterfall Stage Progression
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-                    {STAGES.map((stage, idx) => {
-                      const isPast = currentStageIndex > idx;
-                      const isCurrent = currentStageIndex === idx;
-
-                      return (
-                        <div
-                          key={stage}
-                          className={`p-2.5 rounded-xl border text-center transition-all ${
-                            isCurrent
-                              ? "bg-foreground text-background border-foreground font-bold shadow-sm"
-                              : isPast
-                              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-semibold"
-                              : "bg-muted/30 text-muted-foreground border-border font-medium"
-                          }`}
-                        >
-                          <div className="text-[10px] uppercase font-mono tracking-wider opacity-75">
-                            Step {idx + 1}
-                          </div>
-                          <div className="text-xs truncate mt-0.5 font-bold">
-                            {stage}
-                          </div>
-                          {isPast && (
-                            <CheckCircle2 className="w-3.5 h-3.5 mx-auto mt-1 text-emerald-500" />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* Stage Advance Action Controls */}
-              {!isCompleted ? (
-                <div className="p-5 rounded-2xl border border-border bg-muted/20 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-bold text-foreground">Current Stage: {selectedBatch.currentStage}</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {isLastStage
-                          ? "This is the final stage. Packaging completion will finalize output and stock in Finished Goods."
-                          : `When cooking operations for this step are finished, advance to ${nextStageName}.`}
-                      </p>
-                    </div>
-
-                    <Button
-                      onClick={handleAdvanceStage}
-                      disabled={advancing}
-                      className="bg-foreground text-background font-semibold text-xs px-6 py-2.5 rounded-xl hover:bg-foreground/90 transition-colors shadow-sm shrink-0"
-                    >
-                      {isLastStage ? (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                          <span>Finalize & Complete Batch</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>Advance to {nextStageName}</span>
-                          <ArrowRight className="w-4 h-4 ml-1.5" />
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  {!isLastStage && (
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-muted-foreground">
-                        Stage Notes / Kitchen Observations (Optional)
-                      </label>
-                      <Input
-                        type="text"
-                        placeholder="e.g. Temperature reached 95°C, smooth texture achieved..."
-                        value={stageNotes}
-                        onChange={(e) => setStageNotes(e.target.value)}
-                        className="h-10 text-xs rounded-xl border-border bg-card"
-                      />
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                    <div>
-                      <h4 className="text-sm font-bold text-emerald-500">Batch Completed & Verified</h4>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Finished Goods lot <span className="font-mono font-bold text-foreground">FG-{selectedBatch.batchNumber}</span> stocked in with {selectedBatch.actualQuantity} units.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right text-xs">
-                    <span className="text-muted-foreground block">Packaged By</span>
-                    <span className="font-semibold text-foreground">{selectedBatch.packagedBy || "Head Cook"}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Consumed Raw Material Lots */}
-              <div className="p-5 rounded-2xl border border-border bg-card shadow-sm space-y-3">
-                <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-foreground" />
-                  <span>Consumed Raw Material Supplies</span>
-                </h4>
-
-                <div className="border border-border rounded-xl overflow-hidden">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead className="bg-muted/40 border-b border-border">
-                      <tr>
-                        <th className="py-2.5 px-4 font-semibold text-muted-foreground">Material Item</th>
-                        <th className="py-2.5 px-4 font-semibold text-muted-foreground">Lot Code</th>
-                        <th className="py-2.5 px-4 font-semibold text-muted-foreground text-right">Quantity Used</th>
-                        <th className="py-2.5 px-4 font-semibold text-muted-foreground">UOM</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {selectedBatch.consumptions?.map((c) => (
-                        <tr key={c.consumptionId} className="hover:bg-muted/10">
-                          <td className="py-3 px-4 font-semibold text-foreground">{c.itemName}</td>
-                          <td className="py-3 px-4 font-mono font-medium text-foreground">
-                            <span className="bg-muted/60 px-2 py-0.5 rounded border border-border">
-                              {c.lotCode || "Assigned Lot"}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-foreground">
-                            {c.quantityUsed}
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground font-mono">{c.uomAbbr}</td>
-                        </tr>
-                      ))}
-                      {(!selectedBatch.consumptions || selectedBatch.consumptions.length === 0) && (
-                        <tr>
-                          <td colSpan={4} className="py-6 text-center text-xs text-muted-foreground">
-                            No consumption records attached to this batch.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="p-12 text-center border border-dashed border-border rounded-2xl bg-card text-xs text-muted-foreground">
-              Select a batch from the left list to view stage tracking and advance production.
-            </div>
-          )}
-        </div>
+        )}
       </div>
-
-      {/* Batch Completion Modal */}
-      <BatchCompletionModal
-        open={showCompletionModal}
-        onClose={() => setShowCompletionModal(false)}
-        batch={selectedBatch}
-        onSuccess={() => {
-          fetchBatches();
-          setShowCompletionModal(false);
-        }}
-      />
     </div>
   );
 }

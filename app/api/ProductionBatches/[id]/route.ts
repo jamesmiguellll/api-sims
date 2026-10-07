@@ -5,11 +5,25 @@ const BATCH_INCLUDE = {
   FinishedProducts: {
     include: { Items: true },
   },
-  Recipes: true,
+  Recipes: {
+    include: { UnitOfMeasures: true },
+  },
+  ProductionRequests: {
+    include: {
+      ProductionReqLotReservations: {
+        include: {
+          InventoryLots: true,
+          Items: true,
+        },
+      },
+    },
+  },
+  InventoryLots: true,
   BatchConsumptions: {
     include: {
       Items: true,
       UnitOfMeasures: true,
+      InventoryLots: true,
     },
   },
 };
@@ -17,30 +31,46 @@ const BATCH_INCLUDE = {
 function mapBatch(b: any) {
   const product = b.FinishedProducts;
   const recipe = b.Recipes;
+  const prodReq = b.ProductionRequests;
   return {
     batchId: b.BatchId,
     batchNumber: b.BatchNumber,
+    prodReqId: b.ProdReqId,
+    reqNumber: prodReq?.ReqNumber ?? "",
+    requestedBy: prodReq?.RequestedBy ?? "",
+    approvedBy: prodReq?.ApprovedBy ?? "",
+    requestedQty: Number(prodReq?.Quantity ?? b.EstimatedQuantity),
     productId: b.ProductId,
     productName: product?.Items?.ItemName ?? "",
+    productCode: product?.Items?.ItemCode ?? "",
     variant: product?.Variant ?? "",
     sku: product?.Sku ?? "",
     recipeId: b.RecipeId,
     recipeName: recipe?.RecipeName ?? "",
+    yieldUom: recipe?.UnitOfMeasures?.Abbreviation ?? "units",
     batchMultiplier: Number(b.BatchMultiplier),
     estimatedQuantity: Number(b.EstimatedQuantity),
     actualQuantity: Number(b.ActualQuantity),
+    finalQuantity: Number(b.FinalQuantity ?? 0),
     scrapQuantity: Number(b.ScrapQuantity),
     scrapReason: b.ScrapReason ?? "",
     productionDate: b.ProductionDate?.toISOString() ?? null,
+    startedAt: b.StartedAt?.toISOString() ?? null,
     completedDate: b.CompletedDate?.toISOString() ?? null,
-    stage: b.Stage,
+    packagedAt: b.PackagedAt?.toISOString() ?? null,
+    packagedBy: b.PackagedBy ?? "",
+    expiryDate: b.ExpiryDate?.toISOString() ?? null,
+    stage: b.CurrentStage || b.Stage,
+    currentStage: b.CurrentStage || b.Stage,
     qualityStatus: b.QualityStatus,
     rejectionReason: b.RejectionReason ?? "",
+    imageUrl: b.ImageUrl ?? "",
     notes: b.Notes ?? "",
     purpose: b.Purpose,
     status: b.Status,
     assignedCook: b.AssignedCook,
     fgLotId: b.FgLotId ?? null,
+    fgLotCode: b.InventoryLots?.LotCode ?? "",
     totalMaterialCost: Number(b.TotalMaterialCost),
     unitCost: Number(b.UnitCost),
     yieldPercentage: Number(b.YieldPercentage),
@@ -53,7 +83,17 @@ function mapBatch(b: any) {
       uomId: c.UomId,
       uomAbbr: c.UnitOfMeasures?.Abbreviation ?? "",
       lotId: c.LotId ?? null,
+      lotCode: c.InventoryLots?.LotCode ?? "",
       unitCost: Number(c.UnitCost),
+    })),
+    reservations: (prodReq?.ProductionReqLotReservations ?? []).map((res: any) => ({
+      reservationId: res.ReservationId,
+      ingredientId: res.IngredientId,
+      itemId: res.ItemId,
+      itemName: res.Items?.ItemName ?? "",
+      lotId: res.LotId,
+      lotCode: res.InventoryLots?.LotCode ?? "",
+      reservedQuantity: Number(res.ReservedQuantity),
     })),
   };
 }

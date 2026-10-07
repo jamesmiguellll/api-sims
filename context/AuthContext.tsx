@@ -28,7 +28,7 @@ export type User = {
   apps: AppAccess[];
 };
 
-type AccountType = "inventory_manager" | "admin" | "head_cook";
+type AccountType = "inventory_manager" | "admin" | "head_cook" | "qa_officer";
 
 type AuthContextType = {
   user: User | null;
@@ -36,6 +36,7 @@ type AuthContextType = {
   activeAccount: AccountType;
   isAdmin: boolean;
   isHeadCook: boolean;
+  isQaOfficer: boolean;
   switchAccount: (account: AccountType) => void;
   logout: () => Promise<void>;
 };
@@ -69,6 +70,18 @@ function getAccountProfile(accountType: string): User {
       apps: [],
     };
   }
+  if (accountType === "qa_officer") {
+    return {
+      id: "scms-qaofficer",
+      username: "ramon",
+      firstName: "Ramon",
+      lastName: "Dela Cruz",
+      email: "qaofficer@r3b2p.com",
+      mustChangePassword: false,
+      roles: ["QA Officer", "Quality Assurance"],
+      apps: [],
+    };
+  }
   return {
     id: "scms-user",
     username: "scmsuser",
@@ -87,7 +100,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const applyAccount = (acc: string) => {
-    const validAcc: AccountType = acc === "admin" ? "admin" : acc === "head_cook" ? "head_cook" : "inventory_manager";
+    const validAcc: AccountType =
+      acc === "admin"
+        ? "admin"
+        : acc === "head_cook"
+        ? "head_cook"
+        : acc === "qa_officer"
+        ? "qa_officer"
+        : "inventory_manager";
     setActiveAccount(validAcc);
     setUser(getAccountProfile(validAcc));
   };
@@ -139,9 +159,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const isAdmin = user?.roles?.includes("Admin") || activeAccount === "admin";
   const isHeadCook = user?.roles?.includes("Head Cook") || activeAccount === "head_cook" || user?.username === "headcook";
+  const isQaOfficer = user?.roles?.includes("QA Officer") || activeAccount === "qa_officer" || user?.username === "ramon";
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, activeAccount, isAdmin, isHeadCook, switchAccount, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, activeAccount, isAdmin, isHeadCook, isQaOfficer, switchAccount, logout }}>
       {children}
     </AuthContext.Provider>
   );
