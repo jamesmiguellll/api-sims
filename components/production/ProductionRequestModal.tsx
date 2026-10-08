@@ -28,6 +28,7 @@ interface ProductionRequestModalProps {
   isInventoryManager?: boolean;
   onProceedToIssuance?: (prodReqId: number) => void;
   onViewPrSummary?: (prData: any) => void;
+  onStartProduction?: (req: ProductionRequestEntity) => void;
 }
 
 interface ProductOption {
@@ -106,6 +107,7 @@ export default function ProductionRequestModal({
   isInventoryManager,
   onProceedToIssuance,
   onViewPrSummary,
+  onStartProduction,
 }: ProductionRequestModalProps) {
   const isViewMode = Boolean(initialRequest);
 
@@ -1168,6 +1170,22 @@ export default function ProductionRequestModal({
                     className="bg-foreground text-background font-semibold text-xs px-5 py-2 rounded-xl hover:bg-foreground/90 transition-colors shadow-sm cursor-pointer"
                   >
                     Proceed to Material Issuance
+                  </Button>
+                )}
+
+                {/* Ready for Production or Materials Issued -> Start Production */}
+                {(initialRequest?.status === "Ready for Production" || initialRequest?.status === "Materials Issued") && onStartProduction && (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (initialRequest) {
+                        onStartProduction(initialRequest);
+                        onClose();
+                      }
+                    }}
+                    className="bg-foreground text-background font-semibold text-xs px-5 py-2 rounded-xl hover:bg-foreground/90 transition-colors shadow-sm cursor-pointer"
+                  >
+                    Start Production
                   </Button>
                 )}
               </>

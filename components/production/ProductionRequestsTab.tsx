@@ -115,7 +115,10 @@ export default function ProductionRequestsTab({
       return reqStatus === "Materials Issued" || reqStatus === "Ready for Production";
     }
     if (tabName === "In Progress") {
-      return reqStatus === "In Production" || reqStatus === "In Progress";
+      return reqStatus === "In Production" || reqStatus === "In Progress" || reqStatus === "For QA";
+    }
+    if (tabName === "Completed") {
+      return reqStatus === "Completed" || reqStatus === "For Stock-in" || reqStatus === "Stocked In";
     }
     return reqStatus === tabName;
   };
@@ -144,24 +147,21 @@ export default function ProductionRequestsTab({
     setIsModalOpen(true);
   };
 
-  // Head Cook or Admin Start Production
+  // Start Production -> Creates batch and navigates straight to Production Tracking
   const handleStartProduction = async (req: ProductionRequestEntity, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    if (!isHeadCook && !isAdmin) {
-      toast.error("Only the Head Cook can start production.");
-      return;
-    }
 
     setStartingId(req.prodReqId);
     try {
       const res = await api.post("/api/ProductionBatches", {
         prodReqId: req.prodReqId,
-        assignedCook: currentUser || "Head Cook",
+        assignedCook: isHeadCook ? (currentUser || "Head Cook") : "Head Cook",
         notes: `Started from Request ${req.reqNumber}`,
       });
 
       if (res.data?.success && res.data.data) {
         toast.success(`Production batch ${res.data.data.batchNumber} started!`);
+        setIsModalOpen(false);
         fetchRequests();
         if (onStartBatchAndTrack) {
           onStartBatchAndTrack(res.data.data.batchId);
@@ -324,11 +324,14 @@ export default function ProductionRequestsTab({
                   const isMenuOpen = openDropdownId === req.prodReqId;
 
                   const isReadyForProd = req.status === "Materials Issued" || req.status === "Ready for Production";
-                  const isInProd = req.status === "In Production" || req.status === "In Progress";
+                  const isInProd = req.status === "In Production" || req.status === "In Progress" || req.status === "For QA";
+                  const isCompleted = req.status === "For Stock-in" || req.status === "Stocked In" || req.status === "Completed";
                   const displayStatus = isReadyForProd
                     ? "Ready for Production"
                     : isInProd
                     ? "In Progress"
+                    : isCompleted
+                    ? "Completed"
                     : req.status;
 
                   return (
@@ -384,21 +387,16 @@ export default function ProductionRequestsTab({
                         <StatusBadge status={displayStatus} />
                       </td>
 
-                      {/* Required Schedule (Date & 12H Time) */}
+                      {/* Required Schedule (Date only) */}
                       <td className="py-3.5 px-4 whitespace-nowrap font-medium text-foreground">
                         <div>{req.requiredDate ? new Date(req.requiredDate).toLocaleDateString() : "—"}</div>
-                        {req.requiredTime && (
-                          <div className="text-[11px] text-muted-foreground font-normal">
-                            {formatTimeTo12Hour(req.requiredTime)}
-                          </div>
-                        )}
                       </td>
 
                       {/* Actions (Three Dots Menu + Quick Start for Head Cook) */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Head Cook / Admin Quick Start Production on Ready for Production items */}
-                          {isReadyForProd && (isHeadCook || isAdmin) && (
+                          {/* Quick Start Production on Ready for Production items */}
+                          {isReadyForProd && (
                             <Button
                               size="sm"
                               onClick={(e) => handleStartProduction(req, e)}
@@ -448,8 +446,8 @@ export default function ProductionRequestsTab({
                                   </button>
                                 )}
 
-                                {/* Start Production for Head Cook / Admin on Ready for Production */}
-                                {isReadyForProd && (isHeadCook || isAdmin) && (
+                                {/* Start Production on Ready for Production */}
+                                {isReadyForProd && (
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -530,6 +528,7 @@ export default function ProductionRequestsTab({
         isInventoryManager={isInventoryManager}
         onProceedToIssuance={(id) => onNavigateToIssuance && onNavigateToIssuance(id)}
         onViewPrSummary={(data) => setPrSummaryData(data)}
+        onStartProduction={handleStartProduction}
       />
 
       {/* PR Summary Modal */}

@@ -323,18 +323,10 @@ export default function CreateStockInModal({ open, onClose, onSuccess }: Props) 
           <button
             type="button"
             disabled={lines.length === 0 || submitting}
-            onClick={() => handleTrySubmit(false)}
-            className="rounded-xl border border-border bg-card px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-          >
-            {submitting ? "Saving…" : "Save as Draft"}
-          </button>
-          <button
-            type="button"
-            disabled={lines.length === 0 || submitting}
             onClick={() => handleTrySubmit(true)}
             className="rounded-xl bg-foreground px-5 py-2.5 text-sm font-semibold text-background hover:bg-foreground/85 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm cursor-pointer"
           >
-            {submitting ? "Submitting…" : "Submit for Approval"}
+            {submitting ? "Committing…" : "Commit to Inventory"}
           </button>
         </div>
       </div>

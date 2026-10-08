@@ -22,7 +22,11 @@ export default function LossTab() {
 
       // Fetch rejected batches from backend API
       const batchesRes = await api.get("/api/ProductionBatches");
-      const batches = batchesRes.data || [];
+      const batches = Array.isArray(batchesRes.data)
+        ? batchesRes.data
+        : Array.isArray(batchesRes.data?.data)
+        ? batchesRes.data.data
+        : [];
 
       // Filter batches that were rejected or cancelled
       const rejectedBatches = batches.filter(

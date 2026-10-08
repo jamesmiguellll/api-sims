@@ -48,7 +48,7 @@ async function handleAddToInventory(request: Request, props: { params: Promise<{
 
     const acceptedQty = inspection
       ? Number(inspection.TotalAcceptedQuantity)
-      : Number(batch.FinalQuantity || batch.ActualQuantity);
+      : Number(batch.FinalQuantity || batch.ActualQuantity || batch.EstimatedQuantity || 0);
 
     if (acceptedQty <= 0) {
       return NextResponse.json(

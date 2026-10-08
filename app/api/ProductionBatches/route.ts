@@ -24,6 +24,7 @@ export function mapBatch(b: any) {
     batchMultiplier: Number(b.BatchMultiplier),
     estimatedQuantity: Number(b.EstimatedQuantity),
     actualQuantity: Number(b.ActualQuantity),
+    finalQuantity: Number(b.FinalQuantity ?? 0),
     scrapQuantity: Number(b.ScrapQuantity),
     scrapReason: b.ScrapReason ?? "",
     productionDate: b.ProductionDate ? b.ProductionDate.toISOString() : null,
@@ -41,6 +42,7 @@ export function mapBatch(b: any) {
     status: b.Status,
     assignedCook: b.AssignedCook,
     fgLotId: b.FgLotId ?? null,
+    fgLotCode: b.InventoryLots?.LotCode ?? "",
     totalMaterialCost: Number(b.TotalMaterialCost),
     unitCost: Number(b.UnitCost),
     yieldPercentage: Number(b.YieldPercentage),
@@ -70,6 +72,7 @@ export const BATCH_INCLUDE = {
       UnitOfMeasures: true,
     },
   },
+  InventoryLots: true,
   ProductionRequests: true,
   BatchConsumptions: {
     include: {

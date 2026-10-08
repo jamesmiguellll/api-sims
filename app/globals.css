@@ -175,7 +175,7 @@ body {
 /* ─── Page enter animation ─── */
 @keyframes pageSlideIn {
   from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: none; }
 }
 @utility animate-page-in {
   animation: pageSlideIn 0.18s ease-out forwards;

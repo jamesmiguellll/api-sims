@@ -57,7 +57,7 @@ export default function ModalWrapper({
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-4 sm:p-6" onClick={onClose}>
       <div
         style={{ width: "100%", maxWidth: maxWidthStyle }}
-        className={`w-full max-h-[90vh] p-6 sm:p-8 rounded-2xl border border-border bg-card flex flex-col shadow-2xl shrink-0 ${size || ""}`}
+        className={`w-full max-h-[90vh] p-6 rounded-2xl border border-border bg-card flex flex-col shadow-2xl shrink-0 ${size || ""}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border pb-3 mb-4 flex-shrink-0">
@@ -71,7 +71,7 @@ export default function ModalWrapper({
             <X size={22} />
           </button>
         </div>
-        <div className="overflow-y-auto flex-1 pr-1 pb-6">{children}</div>
+        <div className="overflow-y-auto pr-1">{children}</div>
       </div>
     </div>,
     document.body

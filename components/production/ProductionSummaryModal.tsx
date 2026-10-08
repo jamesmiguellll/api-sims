@@ -1,6 +1,7 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { X, CheckCircle2, FileText, Printer, Package, ShieldCheck, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductionSummaryReport } from "./types";
@@ -16,11 +17,23 @@ export default function ProductionSummaryModal({
   onClose,
   report,
 }: ProductionSummaryModalProps) {
-  if (!open) return null;
+  const [mounted, setMounted] = useState<boolean>(false);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-      <div className="bg-card border border-border rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!open || !mounted || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border rounded-2xl w-full max-w-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-border bg-muted/20">
           <div className="flex items-center gap-2.5">
@@ -260,6 +273,7 @@ export default function ProductionSummaryModal({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

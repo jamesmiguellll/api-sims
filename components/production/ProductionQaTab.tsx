@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,10 +23,15 @@ export default function ProductionQaTab({
   currentUser = "Ramon Dela Cruz",
   onSwitchToQaOfficer,
 }: ProductionQaTabProps) {
+  const [mounted, setMounted] = useState<boolean>(false);
   const [batches, setBatches] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
   const [subTab, setSubTab] = useState<"pending" | "completed">("pending");
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // QA Form fields
   const [acceptedQty, setAcceptedQty] = useState<number>(0);
@@ -222,15 +228,20 @@ export default function ProductionQaTab({
         </button>
       </div>
 
-      {/* ── Main Layout: Batch List & QA Form ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Left List of Batches in this subtab */}
-        <div className="space-y-3">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-            {subTab === "pending" ? "Batches Awaiting QA" : "Inspected Batches"}
-          </p>
+      {/* ── Main Layout: Slimmer Batch List & Spacious QA Form ── */}
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
+        {/* Left List of Batches in this subtab (w-full lg:w-72 shrink-0) */}
+        <div className="w-full lg:w-72 shrink-0 space-y-3">
+          <div className="flex items-center justify-between pb-1 border-b border-border/60">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-foreground">
+              {subTab === "pending" ? "Awaiting QA" : "Inspected"}
+            </h3>
+            <span className="text-[11px] font-semibold text-muted-foreground font-mono">
+              {batches.length} {batches.length === 1 ? "Batch" : "Batches"}
+            </span>
+          </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-[calc(100vh-270px)] overflow-y-auto pr-1">
             {loading ? (
               <div className="p-6 text-center text-xs font-mono text-muted-foreground uppercase tracking-widest">
                 Loading batches...
@@ -246,22 +257,24 @@ export default function ProductionQaTab({
                   <div
                     key={b.batchId}
                     onClick={() => handleSelectBatch(b)}
-                    className={`p-3.5 rounded-xl border transition-all cursor-pointer ${
+                    className={`p-3 rounded-xl border transition-all cursor-pointer ${
                       isSelected
-                        ? "border-foreground bg-muted/20 shadow-xs"
-                        : "border-border bg-card hover:bg-muted/10"
+                        ? "border-foreground bg-muted/20 ring-1 ring-foreground shadow-xs"
+                        : "border-border bg-card hover:border-foreground/40 hover:bg-muted/10"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs font-bold text-foreground">{b.fgLotCode || b.batchNumber}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-border bg-card font-semibold text-foreground">
+                    <div className="flex items-start justify-between gap-1.5">
+                      <span className="font-mono text-xs font-bold text-foreground truncate block">
+                        {b.fgLotCode || b.batchNumber}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-card font-semibold text-foreground shrink-0">
                         {b.status}
                       </span>
                     </div>
-                    <div className="text-xs font-semibold text-foreground mt-1">{b.productName}</div>
-                    <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-2 font-mono">
-                      <span>Packed: {b.packedQty.toLocaleString()}</span>
-                      <span>Yield: {b.yieldPercentage.toFixed(1)}%</span>
+                    <div className="text-xs font-semibold text-foreground mt-1 truncate">{b.productName}</div>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-2 pt-2 border-t border-border/70 font-mono">
+                      <span>Packed: {Number(b.packedQty).toLocaleString()}</span>
+                      <span>Yield: {Number(b.yieldPercentage).toFixed(1)}%</span>
                     </div>
                   </div>
                 );
@@ -270,8 +283,8 @@ export default function ProductionQaTab({
           </div>
         </div>
 
-        {/* Right QA Inspection Card (matching Screenshot 1) */}
-        <div className="lg:col-span-2">
+        {/* Right QA Inspection Card (flex-1) */}
+        <div className="flex-1 min-w-0 w-full">
           {selectedBatch ? (
             <div className="p-5 rounded-xl border border-border bg-card space-y-5 animate-in fade-in">
               <div>
@@ -499,23 +512,30 @@ export default function ProductionQaTab({
       </div>
 
       {/* Confirmation Modal */}
-      {confirmModal && selectedBatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-2xs p-4 animate-in fade-in">
-          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 space-y-4 shadow-xl">
+      {mounted && confirmModal && selectedBatch && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setConfirmModal(false)}
+        >
+          <div
+            style={{ width: "100%", maxWidth: "440px" }}
+            className="w-full max-w-md bg-card rounded-2xl shadow-2xl border border-border overflow-hidden flex flex-col p-6 text-foreground shrink-0 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div>
-              <h4 className="text-sm font-bold text-foreground">Confirm Quality Assurance Review</h4>
-              <p className="text-xs text-muted-foreground mt-1">
-                You are approving <strong>{acceptedQty} units</strong> to proceed to stock-in
+              <h4 className="text-base font-bold text-foreground">Confirm Quality Assurance Review</h4>
+              <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                You are approving <strong className="text-foreground">{acceptedQty} units</strong> to proceed to stock-in
                 {rejectedQty > 0 ? ` and logging ${rejectedQty} units to Loss & Disposal` : ""}. This action is permanent.
               </p>
             </div>
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => setConfirmModal(false)}
-                className="text-xs border-border"
+                className="text-xs border-border hover:bg-muted font-medium cursor-pointer"
               >
                 Cancel
               </Button>
@@ -530,7 +550,8 @@ export default function ProductionQaTab({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

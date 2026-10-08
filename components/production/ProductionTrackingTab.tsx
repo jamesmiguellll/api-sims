@@ -24,15 +24,17 @@ export default function ProductionTrackingTab({
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedBatchId, setSelectedBatchId] = useState<number | null>(initialBatchId ?? null);
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [subTab, setSubTab] = useState<"active" | "rejected">("active");
 
   const fetchBatches = useCallback(async () => {
     setLoading(true);
     try {
       const res = await api.get("/api/ProductionBatches");
-      if (res.data && Array.isArray(res.data)) {
-        setBatches(res.data);
-      }
+      const list = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.data)
+        ? res.data.data
+        : [];
+      setBatches(list);
     } catch (err: any) {
       console.error(err);
       toast.error("Failed to load production batches.");
@@ -48,50 +50,49 @@ export default function ProductionTrackingTab({
   useEffect(() => {
     if (initialBatchId) {
       setSelectedBatchId(initialBatchId);
+      fetchBatches();
     }
-  }, [initialBatchId]);
+  }, [initialBatchId, fetchBatches]);
 
-  // Active Batches = All batches in production or packaging (excluding Rejected and fully Completed)
+  // Active Batches = Batches currently undergoing kitchen production or packaging
+  // (Excluding rejected, completed, stocked in, for stock-in, or already sent to QA)
   const activeBatches = useMemo(() => {
     return batches.filter(
-      (b) => b.status !== "Rejected" && b.status !== "Completed" && b.status !== "Stocked In"
+      (b) =>
+        b.status !== "Rejected" &&
+        b.status !== "Completed" &&
+        b.status !== "Stocked In" &&
+        b.status !== "For Stock-in" &&
+        b.status !== "For QA" &&
+        b.status !== "Cancelled"
     );
-  }, [batches]);
-
-  // Rejected Batches = Batches rejected during production or packaging
-  const rejectedBatches = useMemo(() => {
-    return batches.filter((b) => b.status === "Rejected");
   }, [batches]);
 
   const displayedBatches = useMemo(() => {
-    const list = subTab === "active" ? activeBatches : rejectedBatches;
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return list;
+    if (!q) return activeBatches;
 
-    return list.filter(
+    return activeBatches.filter(
       (b) =>
-        b.batchNumber.toLowerCase().includes(q) ||
+        b.batchNumber?.toLowerCase().includes(q) ||
         (b.reqNumber && b.reqNumber.toLowerCase().includes(q)) ||
-        b.productName.toLowerCase().includes(q) ||
+        b.productName?.toLowerCase().includes(q) ||
         (b.assignedCook && b.assignedCook.toLowerCase().includes(q))
     );
-  }, [subTab, activeBatches, rejectedBatches, searchQuery]);
+  }, [activeBatches, searchQuery]);
 
-  // If a batch is selected, render the dedicated Detail View (split-panel layout matching mockups)
-  if (selectedBatchId) {
-    return (
-      <ProductionBatchDetailView
-        batchId={selectedBatchId}
-        onBack={() => setSelectedBatchId(null)}
-        currentUser={currentUser}
-        onRefreshList={fetchBatches}
-        onSwitchToQaOfficer={onSwitchToQaOfficer}
-      />
-    );
-  }
+  // If currently selected batch is no longer active (e.g. finished packaging -> moved to QA), clear selection
+  useEffect(() => {
+    if (selectedBatchId && !loading) {
+      const stillActive = activeBatches.some((b) => b.batchId === selectedBatchId);
+      if (!stillActive) {
+        setSelectedBatchId(null);
+      }
+    }
+  }, [activeBatches, selectedBatchId, loading]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-page-in">
       {/* ── Header ── */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border pb-4">
         <div>
@@ -112,144 +113,105 @@ export default function ProductionTrackingTab({
         </div>
       </div>
 
-      {/* ── Subtab Pill Navigation (Active Batches & Rejected Batches) ── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setSubTab("active")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              subTab === "active"
-                ? "bg-foreground text-background shadow-xs"
-                : "border border-border bg-card text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <span>Active Batches</span>
-            <span
-              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                subTab === "active" ? "bg-background text-foreground" : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {activeBatches.length}
-            </span>
-          </button>
+      {/* ── Slim Sidebar + Spacious Main Production Layout ── */}
+      <div className="flex flex-col lg:flex-row gap-5 items-start">
+        {/* Left Column: Slimmer Active Batches Bar (w-full lg:w-72 shrink-0) */}
+        <div className="w-full lg:w-72 shrink-0">
+          <div className="border border-border rounded-2xl bg-card p-3.5 space-y-3 shadow-xs">
+            {/* Card Header matching user reference */}
+            <div className="flex items-center justify-between pb-1 border-b border-border/60">
+              <h3 className="font-bold text-xs uppercase tracking-wider text-foreground">Active Batches</h3>
+              <span className="text-[11px] font-semibold text-muted-foreground font-mono">
+                {activeBatches.length} {activeBatches.length === 1 ? "Batch" : "Batches"}
+              </span>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => setSubTab("rejected")}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-              subTab === "rejected"
-                ? "bg-foreground text-background shadow-xs"
-                : "border border-border bg-card text-muted-foreground hover:bg-muted"
-            }`}
-          >
-            <span>Rejected Batches</span>
-            <span
-              className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                subTab === "rejected" ? "bg-background text-foreground" : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {rejectedBatches.length}
-            </span>
-          </button>
+            {/* Search Input */}
+            <div>
+              <Input
+                placeholder="Search active batches..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 text-xs border-border bg-background"
+              />
+            </div>
+
+            {/* Batches List */}
+            <div className="space-y-2 max-h-[calc(100vh-270px)] overflow-y-auto pr-1">
+              {loading ? (
+                <div className="py-8 text-center text-xs font-mono text-muted-foreground uppercase tracking-widest">
+                  Loading active batches...
+                </div>
+              ) : displayedBatches.length === 0 ? (
+                <div className="py-10 px-3 text-center text-xs text-muted-foreground">
+                  No active batches in kitchen production.
+                </div>
+              ) : (
+                displayedBatches.map((b) => {
+                  const isSelected = b.batchId === selectedBatchId;
+                  return (
+                    <div
+                      key={b.batchId}
+                      onClick={() => setSelectedBatchId(b.batchId)}
+                      className={`p-3 rounded-xl border transition-all cursor-pointer text-left ${
+                        isSelected
+                          ? "border-foreground bg-muted/20 ring-1 ring-foreground shadow-sm"
+                          : "border-border bg-card hover:border-foreground/40 hover:bg-muted/10"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-1.5">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-mono font-bold text-xs text-foreground block truncate">
+                            {b.batchNumber}
+                          </span>
+                          <span className="font-semibold text-xs text-foreground block mt-0.5 truncate">
+                            {b.productName}
+                          </span>
+                          {b.variant && (
+                            <span className="text-[10px] text-muted-foreground block truncate">
+                              {b.variant}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border border-border bg-background text-foreground shrink-0">
+                          {b.status}
+                        </span>
+                      </div>
+
+                      <div className="mt-2.5 pt-2 border-t border-border/70 flex items-center justify-between text-[11px]">
+                        <span className="font-medium text-foreground bg-muted/60 px-1.5 py-0.5 rounded border border-border text-[10px]">
+                          {b.currentStage || b.stage || "Pre-Production"}
+                        </span>
+                        <span className="font-mono font-bold text-foreground text-[11px]">
+                          {b.estimatedQuantity} {b.yieldUom || "jars"}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
 
-        <div className="w-full sm:w-64">
-          <Input
-            placeholder="Search by batch, PR, or product..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-8 text-xs border-border bg-card"
-          />
+        {/* Right Column: Waterfall Stage Progression & Packaging (flex-1) */}
+        <div className="flex-1 min-w-0 w-full">
+          {!selectedBatchId ? (
+            <div className="rounded-2xl border border-border bg-card p-16 text-center shadow-xs flex flex-col items-center justify-center min-h-[380px]">
+              <p className="text-sm text-muted-foreground">
+                Select an active batch from the left to execute the waterfall stages.
+              </p>
+            </div>
+          ) : (
+            <ProductionBatchDetailView
+              batchId={selectedBatchId}
+              onBack={() => setSelectedBatchId(null)}
+              currentUser={currentUser}
+              onRefreshList={fetchBatches}
+              onSwitchToQaOfficer={onSwitchToQaOfficer}
+            />
+          )}
         </div>
-      </div>
-
-      {/* ── Monochromatic Table of Batches ── */}
-      <div className="border border-border rounded-xl bg-card overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-xs font-mono text-muted-foreground uppercase tracking-widest">
-            Loading batches...
-          </div>
-        ) : displayedBatches.length === 0 ? (
-          <div className="p-12 text-center space-y-2">
-            <p className="text-sm font-semibold text-foreground">
-              {subTab === "active" ? "No active production batches." : "No rejected batches recorded."}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {subTab === "active"
-                ? "When ready for production requests are started, active batches appear here."
-                : "Any rejected cooking or packaging batches will be archived here."}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-muted/30 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                <tr>
-                  <th className="py-3 px-4">Batch Number</th>
-                  <th className="py-3 px-4">Request No.</th>
-                  <th className="py-3 px-4">Product Name</th>
-                  <th className="py-3 px-4 text-right">Target Qty</th>
-                  <th className="py-3 px-4">Current Stage</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Assigned Cook</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/60">
-                {displayedBatches.map((b) => (
-                  <tr
-                    key={b.batchId}
-                    onClick={() => setSelectedBatchId(b.batchId)}
-                    className="hover:bg-muted/20 transition-colors cursor-pointer group"
-                  >
-                    <td className="py-3 px-4 font-mono font-bold text-foreground">
-                      {b.batchNumber}
-                    </td>
-                    <td className="py-3 px-4 font-mono text-muted-foreground">
-                      {b.reqNumber || "—"}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-foreground">{b.productName}</div>
-                      {b.variant && (
-                        <div className="text-[11px] text-muted-foreground">{b.variant}</div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-right font-mono font-medium text-foreground">
-                      {Number(b.estimatedQuantity).toLocaleString()} {b.yieldUom || "jars"}
-                    </td>
-                    <td className="py-3 px-4 font-semibold text-foreground">
-                      {b.currentStage || b.stage}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-border bg-muted/40 text-foreground">
-                        <span className="w-1.5 h-1.5 rounded-full bg-foreground" />
-                        {b.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-muted-foreground">
-                      {b.assignedCook || "Head Cook"}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedBatchId(b.batchId);
-                        }}
-                        className="h-7 px-2.5 text-xs font-semibold text-foreground hover:bg-muted"
-                      >
-                        Open Batch →
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );

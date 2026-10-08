@@ -128,7 +128,11 @@ export interface ProductionRequestEntity {
     | "Ready for Production"
     | "In Production"
     | "In Progress"
-    | "Completed";
+    | "For QA"
+    | "For Stock-in"
+    | "Stocked In"
+    | "Completed"
+    | (string & {});
   linkedPrId: number | null;
   linkedPrNumber: string | null;
   adminNotes: string;

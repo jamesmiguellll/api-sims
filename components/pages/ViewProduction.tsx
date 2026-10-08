@@ -87,16 +87,17 @@ export default function ProductionPage() {
   // Define tabs based on role
   let tabs: Array<{ key: string; label: string }> = [];
 
-  if (isQaOfficer && !isAdmin) {
-    tabs = [{ key: "qa", label: "Quality Assurance" }];
-  } else if (isInventoryManager && !isAdmin) {
+  if (activeAccount === "inventory_manager" || (isInventoryManager && !isAdmin)) {
     tabs = [
       { key: "requests", label: "Production Requests" },
       { key: "issuance", label: "Material Issuance" },
       { key: "stockin", label: "Stock-In" },
       { key: "configuration", label: "Configuration" },
+      { key: "loss", label: "Loss" },
     ];
-  } else if (isHeadCook && !isAdmin) {
+  } else if (activeAccount === "qa_officer" || (isQaOfficer && !isAdmin)) {
+    tabs = [{ key: "qa", label: "Quality Assurance" }];
+  } else if (activeAccount === "head_cook" || (isHeadCook && !isAdmin)) {
     tabs = [
       { key: "requests", label: "Production Requests" },
       { key: "tracking", label: "Production Tracking" },
