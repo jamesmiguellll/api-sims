@@ -90,11 +90,11 @@ export default function MaterialIssuanceTab({ initialIssuanceId }: MaterialIssua
         </p>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="border border-border rounded-xl overflow-hidden bg-card shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/20 border-b border-border">
-          <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-            <Search className="w-4 h-4 text-muted-foreground shrink-0 ml-1" />
+      {/* Search and Status Filter Bar */}
+      <div className="border border-border rounded-md overflow-hidden bg-card">
+        <div className="flex items-center justify-between gap-sm px-md py-sm bg-muted/20">
+          <div className="flex items-center gap-sm flex-1">
+            <Search className="w-4 h-4 text-muted-foreground shrink-0" />
             <Input
               type="text"
               placeholder="Search by issuance #, request #, or product..."
@@ -103,11 +103,11 @@ export default function MaterialIssuanceTab({ initialIssuanceId }: MaterialIssua
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-9 border-none bg-transparent shadow-none focus-visible:ring-0 text-xs placeholder:text-muted-foreground"
+              className="border-0 shadow-none focus-visible:ring-0 bg-transparent h-8 p-0 text-body-sm flex-1 text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-sm shrink-0">
             <Select
               value={statusFilter}
               onValueChange={(val) => {
@@ -115,21 +115,22 @@ export default function MaterialIssuanceTab({ initialIssuanceId }: MaterialIssua
                 setCurrentPage(1);
               }}
             >
-              <SelectTrigger className="h-9 text-xs rounded-lg border-border bg-card w-[150px]">
-                <SelectValue placeholder="Status: All" />
+              <SelectTrigger className="h-10 min-w-[210px] w-auto rounded-xl border border-border bg-card px-3.5 text-sm font-medium text-foreground shadow-sm focus:ring-1 focus:ring-ring">
+                <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
-              <SelectContent className="bg-popover border-border">
-                <SelectItem value="All" className="text-xs">Status: All</SelectItem>
-                <SelectItem value="Pending" className="text-xs">Pending Scan</SelectItem>
-                <SelectItem value="Scanning" className="text-xs">Scanning</SelectItem>
-                <SelectItem value="Issued" className="text-xs">Issued</SelectItem>
+              <SelectContent className="min-w-[210px]">
+                <SelectItem value="All">All Statuses</SelectItem>
+                <SelectItem value="Pending">Pending Scan</SelectItem>
+                <SelectItem value="Scanning">Scanning</SelectItem>
+                <SelectItem value="Issued">Issued</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
+      </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+      {/* Table */}
+      <div className="overflow-x-auto rounded-xl border border-border bg-card">
           <table className="w-full text-left border-collapse text-xs">
             <thead className="bg-muted/40 border-b border-border">
               <tr>
@@ -242,17 +243,12 @@ export default function MaterialIssuanceTab({ initialIssuanceId }: MaterialIssua
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="p-3 border-t border-border bg-card flex justify-end">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalCount={totalCount}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-        )}
-      </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          onPageChange={setCurrentPage}
+        />
 
       {/* Material Issuance Modal */}
       <MaterialIssuanceModal

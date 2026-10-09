@@ -5,28 +5,39 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-    const pageSize = Math.min(200, Math.max(1, parseInt(searchParams.get("pageSize") || "10", 10)));
+    const pageSize = Math.min(1000, Math.max(1, parseInt(searchParams.get("pageSize") || "10", 10)));
     const categoryName = searchParams.get("categoryName") || "";
     const search = searchParams.get("search") || "";
+    const status = searchParams.get("status") || "All";
 
     const where: any = {};
 
-    if (categoryName) {
-      where.Items = {
-        Category: {
-          CategoryName: {
-            contains: categoryName,
-            mode: "insensitive",
-          },
+    const itemsFilter: any = {};
+
+    if (categoryName && categoryName !== "All") {
+      itemsFilter.Category = {
+        CategoryName: {
+          contains: categoryName,
+          mode: "insensitive",
         },
       };
     }
 
+    if (status === "Active") {
+      itemsFilter.IsActive = true;
+    } else if (status === "Inactive") {
+      itemsFilter.IsActive = false;
+    }
+
     if (search) {
-      where.Items = {
-        ...where.Items,
-        ItemName: { contains: search, mode: "insensitive" },
-      };
+      itemsFilter.OR = [
+        { ItemName: { contains: search, mode: "insensitive" } },
+        { ItemCode: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    if (Object.keys(itemsFilter).length > 0) {
+      where.Items = itemsFilter;
     }
 
     const [total, records] = await Promise.all([

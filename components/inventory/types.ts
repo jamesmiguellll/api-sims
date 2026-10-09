@@ -1,7 +1,9 @@
 export type InventoryItem = {
   inventoryId: number;
   itemId: number;
+  itemCode?: string;
   itemName: string;
+  categoryId?: number;
   categoryName: string;
   uomName: string;
   locationId: number;
@@ -12,4 +14,8 @@ export type InventoryItem = {
   minStockLevel: number;
   maxStockLevel: number;
   isLowStock: boolean;
+  isOverStock?: boolean;
+  isActive?: boolean;
+  isLotTracked?: boolean;
+  isExpiryTracked?: boolean;
 };
